@@ -17,7 +17,7 @@ from pathlib import Path
 
 from pysmi.codegen.pysnmp import PySnmpCodeGen
 from pysmi.compiler import MibCompiler
-from pysmi.parser.smiv2 import SmiV2Parser
+from pysmi.parser.smi import parserFactory
 from pysmi.reader.localfile import FileReader
 from pysmi.searcher.stub import StubSearcher
 from pysmi.writer.pyfile import PyFileWriter
@@ -33,6 +33,18 @@ class ParseResult:
     """一次解析的结果。"""
     loaded_modules: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+
+
+# 宽松 SMIv2 解析器: 容忍厂商 MIB 的真实世界语法瑕疵。
+#   commaAtTheEndOfSequence — 枚举/SEQUENCE 末尾尾随逗号(华为/中兴常见)
+#   commaAtTheEndOfImport   — IMPORT 末尾尾随逗号
+#   mixOfCommasAndSpaces    — 枚举中逗号与空格混用
+# 严格 SMIv2 解析器会拒绝这些瑕疵,导致大量合法厂商 MIB 导入失败。
+_RelaxedParser = parserFactory(
+    commaAtTheEndOfSequence=True,
+    commaAtTheEndOfImport=True,
+    mixOfCommasAndSpaces=True,
+)
 
 
 def _bundled_standard_mibs_dir() -> str:
@@ -98,7 +110,7 @@ class MibParser:
         out_dir = tempfile.mkdtemp(prefix="hwtransmib_compile_")
         self._compile_out = out_dir
 
-        mc = MibCompiler(SmiV2Parser(), PySnmpCodeGen(), PyFileWriter(out_dir))
+        mc = MibCompiler(_RelaxedParser(), PySnmpCodeGen(), PyFileWriter(out_dir))
         # 内置标准 MIB 纯文本目录作依赖来源
         std_dir = _bundled_standard_mibs_dir()
         if Path(std_dir).is_dir():
