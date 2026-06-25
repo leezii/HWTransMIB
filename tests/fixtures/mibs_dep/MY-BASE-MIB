@@ -1,0 +1,14 @@
+MY-BASE-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+    MODULE-IDENTITY, OBJECT-TYPE, Integer32, enterprises
+        FROM SNMPv2-SMI;
+
+myBaseMIB MODULE-IDENTITY
+    LAST-UPDATED "200001010000Z"
+    ORGANIZATION "Base"
+    CONTACT-INFO "Base"
+    DESCRIPTION "Base MIB depended upon"
+    ::= { enterprises 88888 }
+
+END

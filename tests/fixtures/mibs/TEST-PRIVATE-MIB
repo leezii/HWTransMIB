@@ -1,0 +1,21 @@
+TEST-PRIVATE-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+    MODULE-IDENTITY, OBJECT-TYPE, Integer32, enterprises
+        FROM SNMPv2-SMI;
+
+testPrivateMIB MODULE-IDENTITY
+    LAST-UPDATED "200001010000Z"
+    ORGANIZATION "Test Org"
+    CONTACT-INFO "Test"
+    DESCRIPTION "Test private MIB for plain-text import"
+    ::= { enterprises 99999 }
+
+testObject OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Test object"
+    ::= { testPrivateMIB 1 }
+
+END
