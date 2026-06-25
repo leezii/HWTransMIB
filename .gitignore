@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+*.spec
+
+# uv
+.uv-cache/
+
+# PyInstaller
+*.spec
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Brainstorming artifacts
+.superpowers/
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# App runtime data (user config, generated at runtime)
+# Note: ~/.hwtransmib/ is outside project, not tracked here
