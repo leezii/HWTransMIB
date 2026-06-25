@@ -10,9 +10,6 @@ build/
 # uv
 .uv-cache/
 
-# PyInstaller
-*.spec
-
 # IDE
 .vscode/
 .idea/

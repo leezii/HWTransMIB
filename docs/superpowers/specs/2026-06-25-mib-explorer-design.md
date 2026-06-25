@@ -222,7 +222,7 @@ class NodeType(Enum):
 | INTEGER | 直接十进制 | `5` |
 | OCTET STRING / DisplayString | 长度前缀 + ASCII | `"abc"` → `3.97.98.99` |
 | IpAddress | 点分四段 | `192.168.1.1` → `192.168.1.1` |
-| PhysAddress (MAC) | 冒号转点(hex) | `00:11:22` → `0.17.34` 或 hex 形式 |
+| PhysAddress (MAC) | 冒号分隔转点分十进制 | `00:11:22` → `0.17.34` |
 | IMPLIED STRING | 省略长度前缀 | 若 INDEX 标记 IMPLIED |
 
 ### 5.3 交互特性
@@ -231,6 +231,13 @@ class NodeType(Enum):
 - **类型感知输入控件**:INTEGER 数字框 / IpAddress 格式框 / MAC 框。
 - **输入校验**:INTEGER 非数字报错;IpAddress 格式非法红框提示;校验通过才允许复制。
 - **构造历史**:每次复制自动存入历史(时间戳 + 完整 OID + 节点名),右栏 Tab 可回溯。
+
+### 5.4 范围边界(首版不处理)
+
+以下属于复杂索引边界情况,**首版不在范围内**(对应用户在澄清阶段选择"支持表索引列"而非"复杂边界"):
+
+- **AUGMENTS**(增强表):一张表的行用另一张表的索引。首版不支持,遇到时按普通表处理并提示用户。
+- **隐式索引推导**、SNMPv2-SMI 奇特类型转换等边界情况。
 
 ## 6. 搜索
 
@@ -254,7 +261,7 @@ class NodeType(Enum):
 ├── config.json          # UI 状态: 窗口尺寸 / 分割比例 / 详情区显隐
 ├── imports.json         # 已导入 MIB 文件路径列表(下次启动自动重载)
 ├── favorites.json       # 收藏节点 (oid, name, module, 添加时间)
-└── history.json         # OID 构造历史 (上限 200 条, 超出 LRU 淘汰)
+└── history.json         # OID 构造历史 (默认上限 200 条, 超出 LRU 淘汰; 上限可在 config.json 调整)
 ```
 
 **策略**:原子写入(写临时文件 → rename),避免崩溃损坏。启动时若 JSON 损坏则备份后重置。
