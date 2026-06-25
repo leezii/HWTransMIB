@@ -1,0 +1,37 @@
+[project]
+name = "hwtransmib"
+version = "0.1.0"
+description = "SNMP MIB 浏览与 OID 构造工具"
+readme = "README.md"
+authors = [
+    { name = "leezii", email = "admin@leezii.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pysnmp>=7.1,<8",
+    "pysmi>=1.5,<2",
+    "PySide6>=6.6,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-qt>=4.4",
+    "pytest-cov>=5.0",
+]
+
+[project.scripts]
+hwtransmib = "hwtransmib.ui.app:main"
+
+[build-system]
+requires = ["uv_build>=0.11.24,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "hwtransmib"
+module-root = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+qt_api = "pyside6"
