@@ -63,12 +63,15 @@ class OidBuilder:
         # 按索引列声明顺序构造类型化值
         typed_values = []
         for spec in specs:
-            raw = index_values[spec.column_name].strip()
+            raw = (index_values.get(spec.column_name, "") or "").strip()
             typed_values.append(self._coerce(spec, raw))
 
         try:
             inst_id = row_node.getInstIdFromIndices(*typed_values)
-        except (smi_error.SmiError, ValueError, TypeError) as exc:
+        except Exception as exc:
+            # Exception 兜底:pyasn1 的 PyAsn1Error 是 Exception 直接子类,
+            # 不属于 SmiError,TC 包装类型索引输入非法时会抛出。
+            # 这里统一转为友好的 OidBuildError,避免应用崩溃。
             raise OidBuildError(f"索引编码失败: {exc}") from exc
 
         # getInstIdFromIndices 返回纯索引后缀(不含 column 前缀)
@@ -99,10 +102,21 @@ class OidBuilder:
             ancestor = ancestor.parent
         return None
 
+    def _looks_integer(self, spec, raw: str) -> bool:
+        """判断索引列是否应为整数。
+
+        SNMP 中 INTEGER 及其派生 TC(如 InterfaceIndex/InetVersion/TruthValue)
+        都按整数编码。判断依据:syntax 名含 INT/Integer,或输入本身是纯数字。
+        """
+        syntax = (spec.syntax or "").upper()
+        if "INT" in syntax or "INTEGER" in syntax:
+            return True
+        # TC 包装的整数类型:输入是纯数字时按整数处理
+        return raw.lstrip("-").isdigit()
+
     def _coerce(self, spec, raw: str):
         """将字符串输入转为 PySnmp 期望的索引值类型。"""
-        syntax = (spec.syntax or "").upper()
-        if "INT" in syntax:
+        if self._looks_integer(spec, raw):
             try:
                 return int(raw)
             except ValueError:
@@ -113,8 +127,7 @@ class OidBuilder:
         return raw
 
     def _validate_value(self, spec, raw: str) -> list[str]:
-        syntax = (spec.syntax or "").upper()
-        if "INT" in syntax:
+        if self._looks_integer(spec, raw):
             try:
                 int(raw)
             except ValueError:
