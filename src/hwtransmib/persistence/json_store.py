@@ -20,6 +20,12 @@ class JsonStore:
         self._path = Path(path)
         self._default = default
         self._path.parent.mkdir(parents=True, exist_ok=True)
+        # 构造时若文件已损坏,立即备份(便于诊断)
+        if self._path.exists():
+            try:
+                json.loads(self._path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                self._backup_corrupt()
 
     def read(self) -> dict[str, Any]:
         if not self._path.exists():
