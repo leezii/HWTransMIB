@@ -88,6 +88,25 @@ class MibTreeModel(QAbstractItemModel):
         """公开方法:UI 通过 index 取 MibNode。"""
         return self._node_from_index(index)
 
+    def index_from_oid(self, oid: str) -> QModelIndex:
+        """按完整 OID 查找对应的 QModelIndex(用于搜索跳转/收藏定位)。
+
+        沿父链递归构造 index。找不到返回空 index。
+        """
+        node = self._invisible.children[0].find(oid) if self._invisible.children else None
+        if node is None:
+            return QModelIndex()
+        return self._index_of_node(node)
+
+    def _index_of_node(self, node: MibNode) -> QModelIndex:
+        """递归构造指向 node 的 QModelIndex。"""
+        if node.parent is None or node.parent is self._invisible:
+            return self.index(0, 0)
+        parent_idx = self._index_of_node(node.parent)
+        # 在父的 children 中找本节点的行号
+        row = node.parent.children.index(node)
+        return self.index(row, 0, parent_idx)
+
     def reset_root(self, root: MibNode) -> None:
         """重新导入后替换整棵树。"""
         self.beginResetModel()
