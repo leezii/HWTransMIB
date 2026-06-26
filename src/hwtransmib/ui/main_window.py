@@ -39,6 +39,16 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("🌲 HWTransMIB")
         self.resize(1000, 700)
+        # 窗口图标(部分平台需在窗口对象上设置)
+        try:
+            import importlib.resources
+            from PySide6.QtGui import QIcon
+            res = importlib.resources.files("hwtransmib.ui") / "resources" / "app-icon.png"
+            with importlib.resources.as_file(res) as p:
+                if p.exists():
+                    self.setWindowIcon(QIcon(str(p)))
+        except Exception:
+            pass
         self._import = import_service
         self._ud = user_data
         self._oid_svc: OidBuildService | None = None

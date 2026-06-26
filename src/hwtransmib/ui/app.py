@@ -23,8 +23,26 @@ def _standard_mibs_dir() -> str | None:
     return str(candidate) if candidate.is_dir() else None
 
 
+def _app_icon_path() -> str | None:
+    """返回随包分发的应用图标路径(兼容源码与打包)。"""
+    try:
+        import importlib.resources
+        res = importlib.resources.files("hwtransmib.ui") / "resources" / "app-icon.png"
+        with importlib.resources.as_file(res) as p:
+            return str(p) if p.exists() else None
+    except Exception:
+        return None
+
+
 def main() -> int:
     app = QApplication(sys.argv)
+
+    # 应用图标(窗口标题栏 + 任务栏)
+    from PySide6.QtGui import QIcon
+    icon_path = _app_icon_path()
+    if icon_path:
+        app.setWindowIcon(QIcon(icon_path))
+
     sources = []
     std_dir = _standard_mibs_dir()
     if std_dir:
