@@ -182,18 +182,23 @@ class MainWindow(QMainWindow):
             self._expanded_oids.discard(node.oid)
 
     def _restore_expanded_state(self) -> None:
-        """从持久化恢复展开状态;树中不存在的 OID 静默跳过。
+        """请求恢复展开状态(实际恢复在 showEvent 后执行)。
 
-        延迟到事件循环空闲时执行:QTreeView 在窗口首次 show 时会重新布局,
-        会重置构造期间设置的展开状态。用 QTimer.singleShot(0,...) 把恢复
-        推迟到 show 完成后,确保展开状态不被布局覆盖。
+        QTreeView 首次 show 时的布局会重置构造期间设的展开状态,因此
+        用 showEvent 触发实际恢复,确保发生在布局之后。模型若在 show 后
+        才设置(如手动导入),则立即恢复。
         """
         if self._model is None:
             return
-        QTimer.singleShot(0, self._do_restore_expanded)
+        if self.isVisible():
+            # 窗口已显示(如手动导入场景),立即恢复
+            self._do_restore_expanded()
+        else:
+            # 标记待恢复,showEvent 时执行
+            self._pending_restore = True
 
     def _do_restore_expanded(self) -> None:
-        """实际执行展开恢复(在事件循环空闲时调用)。"""
+        """实际执行展开恢复。"""
         if self._model is None:
             return
         oids = self._ud.config().get("expanded_oids", [])
@@ -205,6 +210,14 @@ class MainWindow(QMainWindow):
             idx = self._model.index_from_oid(oid)
             if idx.isValid():
                 self._tree.setExpanded(idx, True)
+
+    def showEvent(self, event) -> None:
+        """窗口显示后执行待恢复的展开状态。"""
+        super().showEvent(event)
+        if getattr(self, "_pending_restore", False):
+            self._pending_restore = False
+            # 延迟一帧,确保本次 show 的布局完全完成后恢复
+            QTimer.singleShot(0, self._do_restore_expanded)
 
     def _apply_column_widths(self) -> None:
         """应用列宽:有记录用记录,否则按 2:1。"""

@@ -73,8 +73,8 @@ def test_expanded_state_persisted_on_close(make_window, qtbot):
 def test_restore_expanded_skips_missing_oid(make_window, qtbot):
     """恢复时,树中不存在的 OID 静默跳过。
 
-    _restore_expanded_state 延迟到事件循环空闲执行(QTimer.singleShot),
-    用 qtbot.waitUntil 等待延迟恢复生效。
+    _restore_expanded_state 在窗口未显示时标记待恢复,showEvent 触发
+    实际恢复。用 qtbot.waitUntil 等待 show 后的延迟恢复生效。
     """
     w = make_window()
     qtbot.addWidget(w)
@@ -82,9 +82,10 @@ def test_restore_expanded_skips_missing_oid(make_window, qtbot):
     cfg = w._ud.config()
     cfg["expanded_oids"] = ["1.3.6.1", "9.9.9.9"]
     w._ud.set_config(cfg)
-    # 加载树并恢复
+    # 加载树并恢复(窗口未显示 → 标记待恢复)
     _setup_tree(w)
     w._restore_expanded_state()
+    w.show()  # 触发 showEvent → 延迟恢复
     idx_1361 = w._model.index_from_oid("1.3.6.1")
     # 等待延迟恢复完成:存在的 1.3.6.1 应展开
     qtbot.waitUntil(lambda: w._tree.isExpanded(idx_1361))
@@ -95,7 +96,7 @@ def test_restore_expanded_after_show(make_window, qtbot):
 
     回归: 修复前 _restore_expanded_state 在 show 前同步执行,QTreeView
     的首次布局会重置展开状态,导致只剩根节点,需点击才恢复。
-    修复: 用 QTimer.singleShot(0) 延迟到 show/layout 完成后恢复。
+    修复: 用 showEvent 触发,确保恢复发生在 show/布局之后。
     """
     w = make_window()
     qtbot.addWidget(w)
