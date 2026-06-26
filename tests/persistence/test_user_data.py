@@ -58,3 +58,28 @@ def test_favorite_dedup(tmp_path):
     items = ud.favorites()["items"]
     assert len(items) == 1
     assert items[0]["name"] == "a-updated"
+
+
+def test_config_defaults_include_new_fields(tmp_path):
+    ud = UserData(base_dir=tmp_path)
+    cfg = ud.config()
+    assert cfg["expanded_oids"] == []
+    assert cfg["tree_column_widths"] is None
+
+
+def test_persist_expanded_oids(tmp_path):
+    ud = UserData(base_dir=tmp_path)
+    cfg = ud.config()
+    cfg["expanded_oids"] = ["1.3.6.1.4.1.2011.2.25", "1.3.6.1.2.1"]
+    ud.set_config(cfg)
+    ud2 = UserData(base_dir=tmp_path)
+    assert ud2.config()["expanded_oids"] == ["1.3.6.1.4.1.2011.2.25", "1.3.6.1.2.1"]
+
+
+def test_persist_tree_column_widths(tmp_path):
+    ud = UserData(base_dir=tmp_path)
+    cfg = ud.config()
+    cfg["tree_column_widths"] = [533, 266]
+    ud.set_config(cfg)
+    ud2 = UserData(base_dir=tmp_path)
+    assert ud2.config()["tree_column_widths"] == [533, 266]

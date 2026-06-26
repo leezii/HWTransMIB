@@ -30,10 +30,15 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "hwtransmib"
 module-root = "src"
-# 内置标准 MIB(非 .py 数据文件)随包分发
-force-include = { "src/hwtransmib/kernel/standard_mibs" = "hwtransmib/kernel/standard_mibs" }
+# 内置标准 MIB + 应用图标(非 .py 数据文件)随包分发
+force-include = { "src/hwtransmib/kernel/standard_mibs" = "hwtransmib/kernel/standard_mibs", "src/hwtransmib/ui/resources" = "hwtransmib/ui/resources" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
 qt_api = "pyside6"
+
+[dependency-groups]
+dev = [
+    "pillow>=12.2.0",
+]
