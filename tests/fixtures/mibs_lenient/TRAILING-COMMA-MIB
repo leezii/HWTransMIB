@@ -1,0 +1,26 @@
+TRAILING-COMMA-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+    MODULE-IDENTITY, OBJECT-TYPE, Integer32, enterprises
+        FROM SNMPv2-SMI;
+
+trailingCommaMIB MODULE-IDENTITY
+    LAST-UPDATED "200001010000Z"
+    ORGANIZATION "Test"
+    CONTACT-INFO "Test"
+    DESCRIPTION "Test MIB with trailing commas (real-world vendor quirk)"
+    ::= { enterprises 66666 }
+
+-- INTEGER 枚举末尾有尾随逗号(华为/中兴 MIB 常见瑕疵)
+portType OBJECT-TYPE
+    SYNTAX      INTEGER {
+                    ethport(0),
+                    geport(1),
+                    unknow(254),
+                }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Port type"
+    ::= { trailingCommaMIB 1 }
+
+END
