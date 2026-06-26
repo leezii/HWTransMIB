@@ -37,24 +37,24 @@ def _setup_tree(window):
 
 
 def test_expanded_oids_tracked_on_expand(make_window, qtbot):
-    """展开节点 → OID 加入内存集合。"""
+    """展开节点 → OID 加入 PersistentTreeView 集合。"""
     w = make_window()
     qtbot.addWidget(w)
     _setup_tree(w)
     root_idx = w._tree.model().index(0, 0)
     w._tree.setExpanded(root_idx, True)
-    assert "1" in w._expanded_oids
+    assert "1" in w._tree.expanded_oids()
 
 
 def test_expanded_oids_removed_on_collapse(make_window, qtbot):
-    """折叠节点 → OID 从内存集合移除。"""
+    """折叠节点 → OID 从集合移除。"""
     w = make_window()
     qtbot.addWidget(w)
     _setup_tree(w)
     root_idx = w._tree.model().index(0, 0)
     w._tree.setExpanded(root_idx, True)
     w._tree.setExpanded(root_idx, False)
-    assert "1" not in w._expanded_oids
+    assert "1" not in w._tree.expanded_oids()
 
 
 def test_expanded_state_persisted_on_close(make_window, qtbot):
@@ -71,45 +71,36 @@ def test_expanded_state_persisted_on_close(make_window, qtbot):
 
 
 def test_restore_expanded_skips_missing_oid(make_window, qtbot):
-    """恢复时,树中不存在的 OID 静默跳过。
-
-    _restore_expanded_state 在窗口未显示时标记待恢复,showEvent 触发
-    实际恢复。用 qtbot.waitUntil 等待 show 后的延迟恢复生效。
-    """
+    """恢复时,树中不存在的 OID 静默跳过;存在的立即展开。"""
     w = make_window()
     qtbot.addWidget(w)
-    # 预置 config 含一个不存在的 OID
     cfg = w._ud.config()
     cfg["expanded_oids"] = ["1.3.6.1", "9.9.9.9"]
     w._ud.set_config(cfg)
-    # 加载树并恢复(窗口未显示 → 标记待恢复)
     _setup_tree(w)
     w._restore_expanded_state()
-    w.show()  # 触发 showEvent → 延迟恢复
     idx_1361 = w._model.index_from_oid("1.3.6.1")
-    # 等待延迟恢复完成:存在的 1.3.6.1 应展开
-    qtbot.waitUntil(lambda: w._tree.isExpanded(idx_1361))
+    assert w._tree.isExpanded(idx_1361)
 
 
-def test_restore_expanded_after_show(make_window, qtbot):
-    """show 后展开状态自动恢复,无需用户点击。
+def test_restore_expanded_after_model_set(make_window, qtbot):
+    """setModel 后展开状态自动恢复,无需 show/点击。
 
-    回归: 修复前 _restore_expanded_state 在 show 前同步执行,QTreeView
-    的首次布局会重置展开状态,导致只剩根节点,需点击才恢复。
-    修复: 用 showEvent 触发,确保恢复发生在 show/布局之后。
+    PersistentTreeView 在 rowsInserted 时按记录展开,与视图项创建绑定。
     """
+    from hwtransmib.ui.mib_tree_model import MibTreeModel
     w = make_window()
     qtbot.addWidget(w)
     cfg = w._ud.config()
     cfg["expanded_oids"] = ["1.3.6"]
     w._ud.set_config(cfg)
-    _setup_tree(w)
+    w._model = MibTreeModel(_build_tree())
+    w._tree.setModel(w._model)
+    w._connect_tree_signals()
+    # 恢复(同步,set_expanded_oids 立即对已存在行应用)
     w._restore_expanded_state()
-    # 触发 show + 布局(模拟真实启动)
-    w.show()
     idx = w._model.index_from_oid("1.3.6")
-    # 无需任何点击,延迟恢复应自动生效
-    qtbot.waitUntil(lambda: w._tree.isExpanded(idx))
+    assert w._tree.isExpanded(idx)
 
 
 def test_column_widths_default_ratio_2to1(make_window, qtbot):
