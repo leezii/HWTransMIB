@@ -101,6 +101,7 @@ class MainWindow(QMainWindow):
         self._auto_reload_imports()
         self._refresh_favorites()
         self._refresh_history()
+        self._apply_column_widths()
 
     def _auto_reload_imports(self) -> None:
         """启动时自动重新导入上次记录的 MIB 文件。"""
@@ -116,6 +117,7 @@ class MainWindow(QMainWindow):
             self._model = MibTreeModel(root)
             self._tree.setModel(self._model)
             self._restore_expanded_state()
+            self._apply_column_widths()
             self._oid_svc = OidBuildService(
                 parser=self._import.get_parser(), root=root,
                 user_data=self._ud,
@@ -183,6 +185,27 @@ class MainWindow(QMainWindow):
             if idx.isValid():
                 self._tree.setExpanded(idx, True)
 
+    def _apply_column_widths(self) -> None:
+        """应用列宽:有记录用记录,否则按 2:1。"""
+        from PySide6.QtWidgets import QHeaderView
+        header = self._tree.header()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        # 关闭末列自动拉伸,否则 setColumnWidth 会被拉伸覆盖
+        header.setStretchLastSection(False)
+
+        saved = self._ud.config().get("tree_column_widths")
+        if saved and len(saved) == 2:
+            self._tree.setColumnWidth(0, saved[0])
+            self._tree.setColumnWidth(1, saved[1])
+        else:
+            # 首次:按树当前可视宽度 2:1 分配
+            total = max(self._tree.viewport().width(), 600)
+            w0 = total * 2 // 3
+            w1 = total - w0
+            self._tree.setColumnWidth(0, w0)
+            self._tree.setColumnWidth(1, w1)
+
     def _on_import(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self, "选择 MIB 文件", "",
@@ -200,6 +223,7 @@ class MainWindow(QMainWindow):
         self._model = MibTreeModel(root)
         self._tree.setModel(self._model)
         self._restore_expanded_state()
+        self._apply_column_widths()
         self._oid_svc = OidBuildService(
             parser=self._import.get_parser(), root=root, user_data=self._ud
         )
@@ -355,5 +379,8 @@ class MainWindow(QMainWindow):
         ).decode("ascii")
         cfg["split_sizes"] = self._splitter.sizes()
         cfg["expanded_oids"] = sorted(self._expanded_oids)
+        cfg["tree_column_widths"] = [
+            self._tree.columnWidth(0), self._tree.columnWidth(1)
+        ]
         self._ud.set_config(cfg)
         super().closeEvent(event)
