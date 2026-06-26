@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QClipboard
 from PySide6.QtWidgets import (
     QApplication, QDialog, QFileDialog, QGroupBox, QHBoxLayout, QLabel,
@@ -182,7 +182,18 @@ class MainWindow(QMainWindow):
             self._expanded_oids.discard(node.oid)
 
     def _restore_expanded_state(self) -> None:
-        """从持久化恢复展开状态;树中不存在的 OID 静默跳过。"""
+        """从持久化恢复展开状态;树中不存在的 OID 静默跳过。
+
+        延迟到事件循环空闲时执行:QTreeView 在窗口首次 show 时会重新布局,
+        会重置构造期间设置的展开状态。用 QTimer.singleShot(0,...) 把恢复
+        推迟到 show 完成后,确保展开状态不被布局覆盖。
+        """
+        if self._model is None:
+            return
+        QTimer.singleShot(0, self._do_restore_expanded)
+
+    def _do_restore_expanded(self) -> None:
+        """实际执行展开恢复(在事件循环空闲时调用)。"""
         if self._model is None:
             return
         oids = self._ud.config().get("expanded_oids", [])
