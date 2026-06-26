@@ -24,6 +24,8 @@ class UserData:
             "window_geometry": None,
             "detail_visible": True,
             "split_sizes": None,
+            "expanded_oids": [],
+            "tree_column_widths": None,
         })
         self._imports = JsonStore(self._base / "imports.json", {"files": []})
         self._favorites = JsonStore(self._base / "favorites.json", {"items": []})
