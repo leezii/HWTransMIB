@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QClipboard
 from PySide6.QtWidgets import (
     QApplication, QDialog, QFileDialog, QGroupBox, QHBoxLayout, QLabel,
@@ -27,6 +27,7 @@ from hwtransmib.services.oid_build_service import OidBuildService
 from hwtransmib.services.search_service import SearchService
 from hwtransmib.ui.mib_tree_model import MibTreeModel
 from hwtransmib.ui.oid_builder_dialog import OidBuilderDialog
+from hwtransmib.ui.persistent_tree_view import PersistentTreeView
 from hwtransmib.ui.property_panel import PropertyPanel
 from hwtransmib.ui.search_box import SearchBox
 
@@ -54,7 +55,6 @@ class MainWindow(QMainWindow):
         self._oid_svc: OidBuildService | None = None
         self._search_svc: SearchService | None = None
         self._model: MibTreeModel | None = None
-        self._expanded_oids: set[str] = set()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -77,7 +77,7 @@ class MainWindow(QMainWindow):
 
         # 上下分割:树 + 详情
         self._splitter = QSplitter(Qt.Orientation.Vertical)
-        self._tree = QTreeView()
+        self._tree = PersistentTreeView()
         self._tree.setUniformRowHeights(True)
         self._tree.setHeaderHidden(False)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
             return
         node = self._model.node_from_index(index)
         if node and node.oid:
-            self._expanded_oids.add(node.oid)
+            self._tree.add_expanded(node.oid)
 
     def _on_node_collapsed(self, index) -> None:
         """节点折叠 → 移除 OID。"""
@@ -179,45 +179,24 @@ class MainWindow(QMainWindow):
             return
         node = self._model.node_from_index(index)
         if node and node.oid:
-            self._expanded_oids.discard(node.oid)
+            self._tree.remove_expanded(node.oid)
 
     def _restore_expanded_state(self) -> None:
-        """请求恢复展开状态(实际恢复在 showEvent 后执行)。
+        """恢复展开状态。
 
-        QTreeView 首次 show 时的布局会重置构造期间设的展开状态,因此
-        用 showEvent 触发实际恢复,确保发生在布局之后。模型若在 show 后
-        才设置(如手动导入),则立即恢复。
+        PersistentTreeView 在 rowsInserted(视图项创建)时自动展开记录的节点,
+        与视图项创建时机绑定,确定性渲染(无需点击)。
         """
         if self._model is None:
             return
-        if self.isVisible():
-            # 窗口已显示(如手动导入场景),立即恢复
-            self._do_restore_expanded()
-        else:
-            # 标记待恢复,showEvent 时执行
-            self._pending_restore = True
-
-    def _do_restore_expanded(self) -> None:
-        """实际执行展开恢复。"""
-        if self._model is None:
-            return
-        oids = self._ud.config().get("expanded_oids", [])
+        oids = set(self._ud.config().get("expanded_oids", []))
         if not oids:
-            # 无历史记录 → 回退到展开深度 2(略好于原来的 1)
+            # 无历史记录 → 回退到展开深度 2
             self._tree.expandToDepth(2)
             return
-        for oid in oids:
-            idx = self._model.index_from_oid(oid)
-            if idx.isValid():
-                self._tree.setExpanded(idx, True)
-
-    def showEvent(self, event) -> None:
-        """窗口显示后执行待恢复的展开状态。"""
-        super().showEvent(event)
-        if getattr(self, "_pending_restore", False):
-            self._pending_restore = False
-            # 延迟一帧,确保本次 show 的布局完全完成后恢复
-            QTimer.singleShot(0, self._do_restore_expanded)
+        # 交给 PersistentTreeView 管理:它会立即对已存在行应用,
+        # 并在后续 rowsInserted 时应用
+        self._tree.set_expanded_oids(oids)
 
     def _apply_column_widths(self) -> None:
         """应用列宽:有记录用记录,否则按 2:1。"""
@@ -412,7 +391,7 @@ class MainWindow(QMainWindow):
             bytes(self.saveGeometry())
         ).decode("ascii")
         cfg["split_sizes"] = self._splitter.sizes()
-        cfg["expanded_oids"] = sorted(self._expanded_oids)
+        cfg["expanded_oids"] = sorted(self._tree.expanded_oids())
         cfg["tree_column_widths"] = [
             self._tree.columnWidth(0), self._tree.columnWidth(1)
         ]
