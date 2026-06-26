@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self._oid_svc: OidBuildService | None = None
         self._search_svc: SearchService | None = None
         self._model: MibTreeModel | None = None
+        self._expanded_oids: set[str] = set()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -73,6 +74,7 @@ class MainWindow(QMainWindow):
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
         self._tree.clicked.connect(self._on_select_node)
         self._tree.doubleClicked.connect(self._on_activate_node)
+        self._connect_tree_signals()
         self._splitter.addWidget(self._tree)
 
         self._detail = self._build_detail()
@@ -113,7 +115,7 @@ class MainWindow(QMainWindow):
             root = self._import.get_root()
             self._model = MibTreeModel(root)
             self._tree.setModel(self._model)
-            self._tree.expandToDepth(1)
+            self._restore_expanded_state()
             self._oid_svc = OidBuildService(
                 parser=self._import.get_parser(), root=root,
                 user_data=self._ud,
@@ -146,6 +148,41 @@ class MainWindow(QMainWindow):
     def _toggle_detail(self, visible: bool) -> None:
         self._detail.setVisible(visible)
 
+    def _connect_tree_signals(self) -> None:
+        """绑定树的展开/折叠信号,实时维护展开 OID 集合。"""
+        self._tree.expanded.connect(self._on_node_expanded)
+        self._tree.collapsed.connect(self._on_node_collapsed)
+
+    def _on_node_expanded(self, index) -> None:
+        """节点展开 → 记录 OID。"""
+        if self._model is None:
+            return
+        node = self._model.node_from_index(index)
+        if node and node.oid:
+            self._expanded_oids.add(node.oid)
+
+    def _on_node_collapsed(self, index) -> None:
+        """节点折叠 → 移除 OID。"""
+        if self._model is None:
+            return
+        node = self._model.node_from_index(index)
+        if node and node.oid:
+            self._expanded_oids.discard(node.oid)
+
+    def _restore_expanded_state(self) -> None:
+        """从持久化恢复展开状态;树中不存在的 OID 静默跳过。"""
+        if self._model is None:
+            return
+        oids = self._ud.config().get("expanded_oids", [])
+        if not oids:
+            # 无历史记录 → 回退到展开深度 2(略好于原来的 1)
+            self._tree.expandToDepth(2)
+            return
+        for oid in oids:
+            idx = self._model.index_from_oid(oid)
+            if idx.isValid():
+                self._tree.setExpanded(idx, True)
+
     def _on_import(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self, "选择 MIB 文件", "",
@@ -162,7 +199,7 @@ class MainWindow(QMainWindow):
         root = self._import.get_root()
         self._model = MibTreeModel(root)
         self._tree.setModel(self._model)
-        self._tree.expandToDepth(1)
+        self._restore_expanded_state()
         self._oid_svc = OidBuildService(
             parser=self._import.get_parser(), root=root, user_data=self._ud
         )
@@ -308,7 +345,7 @@ class MainWindow(QMainWindow):
             self._hist_view.setItem(r, 1, QTableWidgetItem(it.get("name", "")))
 
     def closeEvent(self, event) -> None:
-        """关闭时持久化窗口状态:详情显隐、几何、分割比例。"""
+        """关闭时持久化窗口状态:详情显隐、几何、分割比例、展开状态。"""
         import base64
         cfg = self._ud.config()
         cfg["detail_visible"] = self._detail_btn.isChecked()
@@ -317,5 +354,6 @@ class MainWindow(QMainWindow):
             bytes(self.saveGeometry())
         ).decode("ascii")
         cfg["split_sizes"] = self._splitter.sizes()
+        cfg["expanded_oids"] = sorted(self._expanded_oids)
         self._ud.set_config(cfg)
         super().closeEvent(event)
