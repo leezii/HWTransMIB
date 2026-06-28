@@ -15,9 +15,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QClipboard
 from PySide6.QtWidgets import (
     QApplication, QDialog, QFileDialog, QGroupBox, QHBoxLayout, QLabel,
-    QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter, QTableWidget,
-    QTableWidgetItem,
-    QTabWidget, QTreeView, QVBoxLayout, QWidget,
+    QListWidget, QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter,
+    QTableWidget, QTableWidgetItem, QTabWidget, QTreeView, QVBoxLayout,
+    QWidget,
 )
 
 from hwtransmib.kernel.model import MibNode, NodeType
@@ -54,6 +54,7 @@ class MainWindow(QMainWindow):
         self._oid_svc: OidBuildService | None = None
         self._search_svc: SearchService | None = None
         self._model: MibTreeModel | None = None
+        self._last_search_results: list = []
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -73,6 +74,18 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self._search, 1)
         toolbar.addWidget(self._detail_btn)
         outer.addLayout(toolbar)
+
+        # 搜索结果列表(工具栏下方,默认隐藏)
+        self._search_results = QListWidget()
+        self._search_results.setMaximumHeight(160)
+        self._search_results.setVisible(False)
+        self._search_results.itemClicked.connect(
+            lambda *_: self._on_search_result_activated()
+        )
+        self._search_results.itemActivated.connect(
+            lambda *_: self._on_search_result_activated()
+        )
+        outer.addWidget(self._search_results)
 
         # 上下分割:树 + 详情
         self._splitter = QSplitter(Qt.Orientation.Vertical)
@@ -275,11 +288,28 @@ class MainWindow(QMainWindow):
                 self._open_builder(node)
 
     def _on_search(self, query: str) -> None:
+        """搜索:填充结果列表,跳转第一项。"""
         if self._search_svc is None or not query:
+            self._search_results.clear()
+            self._search_results.setVisible(False)
+            self._last_search_results = []
             return
         results = self._search_svc.search(query)
+        self._last_search_results = results
+        self._search_results.clear()
+        for node in results:
+            icon = "🟢" if node.is_constructible else "📁"
+            self._search_results.addItem(f"{icon} {node.name} ({node.oid})")
+        self._search_results.setVisible(len(results) > 0)
         if results:
             self._select_node(results[0])
+
+    def _on_search_result_activated(self) -> None:
+        """结果列表项被点击/激活:跳转到对应节点。"""
+        row = self._search_results.currentRow()
+        if row < 0 or row >= len(self._last_search_results):
+            return
+        self._select_node(self._last_search_results[row])
 
     def _select_node(self, node: MibNode) -> None:
         """搜索/收藏定位:在树中展开并选中节点,更新属性面板。"""
