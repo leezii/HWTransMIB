@@ -148,8 +148,8 @@ class MainWindow(QMainWindow):
         self._fav_view = QTableWidget(0, 2)
         self._fav_view.setHorizontalHeaderLabels(["节点", "OID"])
         self._fav_view.verticalHeader().setVisible(False)
-        self._hist_view = QTableWidget(0, 2)
-        self._hist_view.setHorizontalHeaderLabels(["OID", "节点"])
+        self._hist_view = QTableWidget(0, 3)
+        self._hist_view.setHorizontalHeaderLabels(["时间", "OID", "节点"])
         self._hist_view.verticalHeader().setVisible(False)
         self._tabs.addTab(self._fav_view, "★ 收藏")
         self._tabs.addTab(self._hist_view, "🕑 历史")
@@ -374,11 +374,17 @@ class MainWindow(QMainWindow):
             self._fav_view.setItem(r, 1, QTableWidgetItem(it.get("oid", "")))
 
     def _refresh_history(self) -> None:
+        from datetime import datetime
         items = self._ud.history()["items"]
         self._hist_view.setRowCount(len(items))
         for r, it in enumerate(items):
-            self._hist_view.setItem(r, 0, QTableWidgetItem(it.get("oid", "")))
-            self._hist_view.setItem(r, 1, QTableWidgetItem(it.get("name", "")))
+            ts = it.get("timestamp")
+            time_text = ""
+            if ts:
+                time_text = datetime.fromtimestamp(ts).strftime("%m-%d %H:%M")
+            self._hist_view.setItem(r, 0, QTableWidgetItem(time_text))
+            self._hist_view.setItem(r, 1, QTableWidgetItem(it.get("oid", "")))
+            self._hist_view.setItem(r, 2, QTableWidgetItem(it.get("name", "")))
 
     def closeEvent(self, event) -> None:
         """关闭时持久化窗口状态:详情显隐、几何、分割比例、展开状态。"""

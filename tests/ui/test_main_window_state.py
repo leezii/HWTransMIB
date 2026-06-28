@@ -140,3 +140,27 @@ def test_column_widths_persisted_on_close(make_window, qtbot):
     saved = UserData(base_dir=w._ud._base).config()["tree_column_widths"]
     assert saved is not None
     assert len(saved) == 2
+
+
+def test_history_shows_time_column(make_window, qtbot):
+    """历史 Tab 含'时间'列。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    w._ud.add_history_entry({"oid": "1.2.3", "name": "test",
+                             "timestamp": 1730000000})
+    w._refresh_history()
+    headers = [w._hist_view.horizontalHeaderItem(c).text()
+               for c in range(w._hist_view.columnCount())]
+    assert "时间" in headers
+
+
+def test_history_time_formatted_readable(make_window, qtbot):
+    """时间列显示可读格式(非裸时间戳)。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    w._ud.add_history_entry({"oid": "1.2.3", "name": "test",
+                             "timestamp": 1730000000})
+    w._refresh_history()
+    time_text = w._hist_view.item(0, 0).text()
+    assert "-" in time_text or ":" in time_text
+    assert "1730000000" not in time_text
