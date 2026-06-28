@@ -16,11 +16,18 @@ from hwtransmib.ui.main_window import MainWindow
 
 
 def _standard_mibs_dir() -> str | None:
-    """返回随包分发的标准 MIB 目录(若存在)。"""
-    here = Path(__file__).resolve().parent
-    # kernel 包下的 standard_mibs 目录
-    candidate = here.parent / "kernel" / "standard_mibs"
-    return str(candidate) if candidate.is_dir() else None
+    """返回随包分发的标准 MIB 目录(兼容源码与 PyInstaller 打包)。
+
+    用 importlib.resources 定位,而非 __file__——后者在 PyInstaller
+    onefile 模式下指向临时解压目录的错误位置。
+    """
+    try:
+        import importlib.resources
+        res = importlib.resources.files("hwtransmib.kernel") / "standard_mibs"
+        with importlib.resources.as_file(res) as p:
+            return str(p) if p.is_dir() else None
+    except Exception:
+        return None
 
 
 def _app_icon_path() -> str | None:
