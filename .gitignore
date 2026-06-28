@@ -6,6 +6,8 @@ __pycache__/
 dist/
 build/
 *.spec
+# 例外: 项目自带的打包配置需提交
+!hwtransmib.spec
 
 # uv
 .uv-cache/
