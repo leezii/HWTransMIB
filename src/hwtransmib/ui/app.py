@@ -15,23 +15,43 @@ from hwtransmib.services.import_service import ImportService
 from hwtransmib.ui.main_window import MainWindow
 
 
+def _resource_dir(subpath: str) -> str | None:
+    """返回随包分发的资源目录(兼容源码与 PyInstaller 打包)。
+
+    PyInstaller onefile 模式:资源解压到 sys._MEIPASS,用它在临时目录定位。
+    源码运行:回退到 importlib.resources 定位安装路径。
+    """
+    import sys
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidate = Path(meipass) / subpath
+        if candidate.is_dir():
+            return str(candidate)
+    try:
+        import importlib.resources
+        parts = subpath.split("/")
+        pkg = ".".join(parts[:-1])
+        name = parts[-1]
+        res = importlib.resources.files(pkg) / name
+        with importlib.resources.as_file(res) as p:
+            return str(p) if p.is_dir() else None
+    except Exception:
+        return None
+    return None
+
+
 def _standard_mibs_dir() -> str | None:
-    """返回随包分发的标准 MIB 目录(若存在)。"""
-    here = Path(__file__).resolve().parent
-    # kernel 包下的 standard_mibs 目录
-    candidate = here.parent / "kernel" / "standard_mibs"
-    return str(candidate) if candidate.is_dir() else None
+    """返回随包分发的标准 MIB 目录。"""
+    return _resource_dir("hwtransmib/kernel/standard_mibs")
 
 
 def _app_icon_path() -> str | None:
-    """返回随包分发的应用图标路径(兼容源码与打包)。"""
-    try:
-        import importlib.resources
-        res = importlib.resources.files("hwtransmib.ui") / "resources" / "app-icon.png"
-        with importlib.resources.as_file(res) as p:
-            return str(p) if p.exists() else None
-    except Exception:
+    """返回随包分发的应用图标。"""
+    path = _resource_dir("hwtransmib/ui/resources")
+    if path is None:
         return None
+    candidate = Path(path) / "app-icon.png"
+    return str(candidate) if candidate.exists() else None
 
 
 def main() -> int:
