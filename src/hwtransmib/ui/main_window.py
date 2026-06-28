@@ -15,9 +15,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QClipboard
 from PySide6.QtWidgets import (
     QApplication, QDialog, QFileDialog, QGroupBox, QHBoxLayout, QLabel,
-    QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter, QTableWidget,
-    QTableWidgetItem,
-    QTabWidget, QTreeView, QVBoxLayout, QWidget,
+    QListWidget, QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter,
+    QTableWidget, QTableWidgetItem, QTabWidget, QTreeView, QVBoxLayout,
+    QWidget,
 )
 
 from hwtransmib.kernel.model import MibNode, NodeType
@@ -54,6 +54,7 @@ class MainWindow(QMainWindow):
         self._oid_svc: OidBuildService | None = None
         self._search_svc: SearchService | None = None
         self._model: MibTreeModel | None = None
+        self._last_search_results: list = []
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -73,6 +74,18 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self._search, 1)
         toolbar.addWidget(self._detail_btn)
         outer.addLayout(toolbar)
+
+        # 搜索结果列表(工具栏下方,默认隐藏)
+        self._search_results = QListWidget()
+        self._search_results.setMaximumHeight(160)
+        self._search_results.setVisible(False)
+        self._search_results.itemClicked.connect(
+            lambda *_: self._on_search_result_activated()
+        )
+        self._search_results.itemActivated.connect(
+            lambda *_: self._on_search_result_activated()
+        )
+        outer.addWidget(self._search_results)
 
         # 上下分割:树 + 详情
         self._splitter = QSplitter(Qt.Orientation.Vertical)
@@ -148,8 +161,8 @@ class MainWindow(QMainWindow):
         self._fav_view = QTableWidget(0, 2)
         self._fav_view.setHorizontalHeaderLabels(["节点", "OID"])
         self._fav_view.verticalHeader().setVisible(False)
-        self._hist_view = QTableWidget(0, 2)
-        self._hist_view.setHorizontalHeaderLabels(["OID", "节点"])
+        self._hist_view = QTableWidget(0, 3)
+        self._hist_view.setHorizontalHeaderLabels(["时间", "OID", "节点"])
         self._hist_view.verticalHeader().setVisible(False)
         self._tabs.addTab(self._fav_view, "★ 收藏")
         self._tabs.addTab(self._hist_view, "🕑 历史")
@@ -275,11 +288,28 @@ class MainWindow(QMainWindow):
                 self._open_builder(node)
 
     def _on_search(self, query: str) -> None:
+        """搜索:填充结果列表,跳转第一项。"""
         if self._search_svc is None or not query:
+            self._search_results.clear()
+            self._search_results.setVisible(False)
+            self._last_search_results = []
             return
         results = self._search_svc.search(query)
+        self._last_search_results = results
+        self._search_results.clear()
+        for node in results:
+            icon = "🟢" if node.is_constructible else "📁"
+            self._search_results.addItem(f"{icon} {node.name} ({node.oid})")
+        self._search_results.setVisible(len(results) > 0)
         if results:
             self._select_node(results[0])
+
+    def _on_search_result_activated(self) -> None:
+        """结果列表项被点击/激活:跳转到对应节点。"""
+        row = self._search_results.currentRow()
+        if row < 0 or row >= len(self._last_search_results):
+            return
+        self._select_node(self._last_search_results[row])
 
     def _select_node(self, node: MibNode) -> None:
         """搜索/收藏定位:在树中展开并选中节点,更新属性面板。"""
@@ -374,11 +404,17 @@ class MainWindow(QMainWindow):
             self._fav_view.setItem(r, 1, QTableWidgetItem(it.get("oid", "")))
 
     def _refresh_history(self) -> None:
+        from datetime import datetime
         items = self._ud.history()["items"]
         self._hist_view.setRowCount(len(items))
         for r, it in enumerate(items):
-            self._hist_view.setItem(r, 0, QTableWidgetItem(it.get("oid", "")))
-            self._hist_view.setItem(r, 1, QTableWidgetItem(it.get("name", "")))
+            ts = it.get("timestamp")
+            time_text = ""
+            if ts:
+                time_text = datetime.fromtimestamp(ts).strftime("%m-%d %H:%M")
+            self._hist_view.setItem(r, 0, QTableWidgetItem(time_text))
+            self._hist_view.setItem(r, 1, QTableWidgetItem(it.get("oid", "")))
+            self._hist_view.setItem(r, 2, QTableWidgetItem(it.get("name", "")))
 
     def closeEvent(self, event) -> None:
         """关闭时持久化窗口状态:详情显隐、几何、分割比例、展开状态。"""
