@@ -139,12 +139,29 @@ class MibTreeBuilder:
             # indexNames 结构: ((implied, module, name), ...)
             implied, mod, col_name = entry[0], entry[1], entry[2]
             col_oid = self._oid_of_symbol(mod, col_name)
-            col_syntax = self._syntax_of_symbol(mod, col_name)
+            col_syntax, is_integer = self._syntax_info_of_symbol(mod, col_name)
             specs.append(IndexSpec(
                 column_name=col_name, column_oid=col_oid,
                 implied=bool(implied), syntax=col_syntax or "INTEGER",
+                is_integer=is_integer,
             ))
         return specs
+
+    def _syntax_info_of_symbol(self, module: str, name: str):
+        """返回 (syntax 名, 是否整数类型)。
+
+        用 PySnmp syntax 对象的基类链判断整数(准确覆盖 TC 包装类型如
+        InetVersion/InterfaceIndex),回退到 syntax 名子串匹配。
+        """
+        try:
+            (sym,) = self._parser.import_symbols(module, name)
+            syn = sym.getSyntax()
+            syntax_name = type(syn).__name__
+            mro_names = [c.__name__ for c in type(syn).__mro__]
+            is_integer = any("Integer" in n for n in mro_names)
+            return syntax_name, is_integer
+        except error.SmiError:
+            return None, False
 
     def _oid_of_symbol(self, module: str, name: str) -> str:
         try:

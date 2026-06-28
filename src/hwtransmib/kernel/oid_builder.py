@@ -105,13 +105,18 @@ class OidBuilder:
     def _looks_integer(self, spec, raw: str) -> bool:
         """判断索引列是否应为整数。
 
-        SNMP 中 INTEGER 及其派生 TC(如 InterfaceIndex/InetVersion/TruthValue)
-        都按整数编码。判断依据:syntax 名含 INT/Integer,或输入本身是纯数字。
+        优先用 IndexSpec.is_integer(基于 PySnmp 基类链,准确覆盖 TC 包装
+        类型如 InetVersion/InterfaceIndex);回退到 syntax 名子串匹配 +
+        输入 isdigit 兜底(兼容 is_integer 未填充的旧数据)。
         """
+        # 优先:基类判断结果(准确)
+        if getattr(spec, "is_integer", False):
+            return True
+        # 回退:syntax 名子串匹配
         syntax = (spec.syntax or "").upper()
         if "INT" in syntax or "INTEGER" in syntax:
             return True
-        # TC 包装的整数类型:输入是纯数字时按整数处理
+        # 兜底:输入是纯数字时按整数处理
         return raw.lstrip("-").isdigit()
 
     def _coerce(self, spec, raw: str):

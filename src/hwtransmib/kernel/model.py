@@ -22,6 +22,7 @@ class IndexSpec:
     column_oid: str
     implied: bool
     syntax: str
+    is_integer: bool = False  # 是否整数类型(含 TC 包装,如 InetVersion/InterfaceIndex)
 
 
 @dataclass
