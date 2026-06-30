@@ -167,6 +167,35 @@ def test_history_time_formatted_readable(make_window, qtbot):
     assert "1730000000" not in time_text
 
 
+def test_history_sorted_by_time_descending(make_window, qtbot):
+    """历史按 timestamp 倒序显示(最新在最上)。
+
+    回归: 旧实现依赖存储顺序,timestamp 与插入顺序不一致时乱序。
+    """
+    w = make_window()
+    qtbot.addWidget(w)
+    # 乱序插入: a(旧) → c(新) → b(中)
+    w._ud.add_history_entry({"oid": "1.1", "name": "a", "timestamp": 1000})
+    w._ud.add_history_entry({"oid": "1.3", "name": "c", "timestamp": 3000})
+    w._ud.add_history_entry({"oid": "1.2", "name": "b", "timestamp": 2000})
+    w._refresh_history()
+    # 应按时间倒序: c(3000) → b(2000) → a(1000)
+    names = [w._hist_view.item(r, 2).text() for r in range(w._hist_view.rowCount())]
+    assert names == ["c", "b", "a"], f"历史未按时间倒序: {names}"
+
+
+def test_history_missing_timestamp_at_end(make_window, qtbot):
+    """无 timestamp 的条目排末尾(防御性)。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    w._ud.add_history_entry({"oid": "1.2", "name": "b", "timestamp": 2000})
+    w._ud.add_history_entry({"oid": "1.1", "name": "a"})  # 无 timestamp
+    w._refresh_history()
+    names = [w._hist_view.item(r, 2).text() for r in range(w._hist_view.rowCount())]
+    # 有 timestamp 的在前(b),无 timestamp 的在末(a)
+    assert names == ["b", "a"], f"无 timestamp 未排末尾: {names}"
+
+
 def test_zero_column_widths_ignored(make_window, qtbot):
     """config 里保存的 0 列宽应被忽略(回归: 导致树空白)。
 
