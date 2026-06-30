@@ -174,9 +174,9 @@ class MibTreeBuilder:
             return []
         try:
             items = list(nv.items())
+            return [(str(name), int(value)) for name, value in items]
         except Exception:
             return []
-        return [(str(name), int(value)) for name, value in items]
 
     def _oid_of_symbol(self, module: str, name: str) -> str:
         try:
