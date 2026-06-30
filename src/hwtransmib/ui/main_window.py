@@ -407,6 +407,9 @@ class MainWindow(QMainWindow):
     def _refresh_history(self) -> None:
         from datetime import datetime
         items = self._ud.history()["items"]
+        # 按 timestamp 倒序(最新在最上);无 timestamp 的排末尾。
+        # 不依赖存储顺序(LRU 插入在 timestamp 与顺序不一致时不可靠)。
+        items = sorted(items, key=lambda e: e.get("timestamp") or 0, reverse=True)
         self._hist_view.setRowCount(len(items))
         for r, it in enumerate(items):
             ts = it.get("timestamp")
