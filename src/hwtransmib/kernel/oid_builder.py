@@ -102,6 +102,12 @@ class OidBuilder:
             ancestor = ancestor.parent
         return None
 
+    def _is_enum_name(self, spec, raw: str) -> bool:
+        """raw 是否为该列的合法枚举名(仅对带枚举列有效)。"""
+        if not spec.named_values:
+            return False
+        return any(name == raw for name, _ in spec.named_values)
+
     def _looks_integer(self, spec, raw: str) -> bool:
         """判断索引列是否应为整数。
 
@@ -120,7 +126,13 @@ class OidBuilder:
         return raw.lstrip("-").isdigit()
 
     def _coerce(self, spec, raw: str):
-        """将字符串输入转为 PySnmp 期望的索引值类型。"""
+        """将字符串输入转为 PySnmp 期望的索引值类型。
+
+        带枚举的列:枚举名原样返回字符串(PySnmp getInstIdFromIndices 接受枚举名);
+        其余按整数处理。
+        """
+        if self._is_enum_name(spec, raw):
+            return raw  # PySnmp 按枚举名编码为对应整数
         if self._looks_integer(spec, raw):
             try:
                 return int(raw)
@@ -132,6 +144,12 @@ class OidBuilder:
         return raw
 
     def _validate_value(self, spec, raw: str) -> list[str]:
+        # 带枚举的列:接受枚举名或纯数字
+        if spec.named_values:
+            if self._is_enum_name(spec, raw) or raw.lstrip("-").isdigit():
+                return []
+            return [f"{spec.column_name} 需要枚举名或数字,得到 {raw!r}"]
+        # 无枚举列:保持原整数校验
         if self._looks_integer(spec, raw):
             try:
                 int(raw)
