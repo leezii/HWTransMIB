@@ -130,10 +130,11 @@ def test_column_widths_restored_from_config(make_window, qtbot):
 
 
 def test_column_widths_persisted_on_close(make_window, qtbot):
-    """关闭时:列宽写入 config。"""
+    """关闭时:有效列宽写入 config。"""
     from PySide6.QtGui import QCloseEvent
     w = make_window()
     qtbot.addWidget(w)
+    _setup_tree(w)  # 列宽操作需要 model 存在
     w.show()
     w._apply_column_widths()
     w.closeEvent(QCloseEvent())
@@ -164,3 +165,35 @@ def test_history_time_formatted_readable(make_window, qtbot):
     time_text = w._hist_view.item(0, 0).text()
     assert "-" in time_text or ":" in time_text
     assert "1730000000" not in time_text
+
+
+def test_zero_column_widths_ignored(make_window, qtbot):
+    """config 里保存的 0 列宽应被忽略(回归: 导致树空白)。
+
+    缺陷: closeEvent 曾保存 [0,0],_apply_column_widths 用 `if saved`
+    判断([0,0] 为真),导致 setColumnWidth(0,0) 树内容完全看不见。
+    """
+    w = make_window()
+    qtbot.addWidget(w)
+    _setup_tree(w)
+    # 预置错误的 0 宽度
+    cfg = w._ud.config()
+    cfg["tree_column_widths"] = [0, 0]
+    w._ud.set_config(cfg)
+    w._apply_column_widths()
+    # 列宽不应是 0(应回退到 2:1 默认)
+    assert w._tree.columnWidth(0) > 0, "节点列宽被设为 0(树会空白)"
+    assert w._tree.columnWidth(1) > 0, "OID 列宽被设为 0"
+
+
+def test_zero_widths_not_persisted_on_close(make_window, qtbot):
+    """关闭时若列宽为 0,不保存(存 None)。"""
+    from PySide6.QtGui import QCloseEvent
+    w = make_window()
+    qtbot.addWidget(w)
+    # 强制列宽为 0(模拟异常布局状态)
+    w._tree.setColumnWidth(0, 0)
+    w._tree.setColumnWidth(1, 0)
+    w.closeEvent(QCloseEvent())
+    saved = UserData(base_dir=w._ud._base).config()["tree_column_widths"]
+    assert saved is None, f"0 宽度不应保存,但存了 {saved}"
