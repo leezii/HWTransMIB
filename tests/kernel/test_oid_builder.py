@@ -165,6 +165,26 @@ def test_invalid_enum_name_rejected(ip_builder):
     assert any("枚举名或数字" in e for e in errors)
 
 
+def test_out_of_range_enum_number_rejected(ip_builder):
+    """枚举列输入超出范围的数字(如 InetVersion 输入 99)应被校验拒绝。"""
+    node = _find(ip_builder._root, "1.3.6.1.2.1.4.31.3.1.3")
+    errors = ip_builder.validate(node, {
+        "ipIfStatsIPVersion": "99",  # 超出 InetVersion {0,1,2}
+        "ipIfStatsIfIndex": "5",
+    })
+    assert any("不在枚举值" in e for e in errors)
+
+
+def test_in_range_enum_number_accepted(ip_builder):
+    """枚举列输入范围内的数字(如 InetVersion 输入 2=ipv6)应通过校验。"""
+    node = _find(ip_builder._root, "1.3.6.1.2.1.4.31.3.1.3")
+    errors = ip_builder.validate(node, {
+        "ipIfStatsIPVersion": "2",  # ipv6, 在范围内
+        "ipIfStatsIfIndex": "5",
+    })
+    assert errors == []
+
+
 def test_non_enum_integer_rejection_unchanged(ip_builder):
     """无枚举列(InterfaceIndex)仍走原整数校验,abc 报'需要整数'。"""
     node = _find(ip_builder._root, "1.3.6.1.2.1.4.31.3.1.3")

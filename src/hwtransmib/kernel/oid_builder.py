@@ -144,10 +144,15 @@ class OidBuilder:
         return raw
 
     def _validate_value(self, spec, raw: str) -> list[str]:
-        # 带枚举的列:接受枚举名或纯数字
+        # 带枚举的列:接受枚举名或在枚举值范围内的数字
         if spec.named_values:
-            if self._is_enum_name(spec, raw) or raw.lstrip("-").isdigit():
+            if self._is_enum_name(spec, raw):
                 return []
+            if raw.lstrip("-").isdigit():
+                valid_nums = {value for _, value in spec.named_values}
+                if int(raw) in valid_nums:
+                    return []
+                return [f"{spec.column_name} 值 {raw!r} 不在枚举值 {sorted(valid_nums)} 内"]
             return [f"{spec.column_name} 需要枚举名或数字,得到 {raw!r}"]
         # 无枚举列:保持原整数校验
         if self._looks_integer(spec, raw):
