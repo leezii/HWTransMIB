@@ -220,11 +220,12 @@ class MainWindow(QMainWindow):
         header.setStretchLastSection(False)
 
         saved = self._ud.config().get("tree_column_widths")
-        if saved and len(saved) == 2:
+        # 仅当保存的两列宽度都为正时才使用(防御 0 宽度导致树空白)
+        if saved and len(saved) == 2 and saved[0] > 0 and saved[1] > 0:
             self._tree.setColumnWidth(0, saved[0])
             self._tree.setColumnWidth(1, saved[1])
         else:
-            # 首次:按树当前可视宽度 2:1 分配
+            # 首次或无效记录:按树当前可视宽度 2:1 分配
             total = max(self._tree.viewport().width(), 600)
             w0 = total * 2 // 3
             w1 = total - w0
@@ -427,8 +428,8 @@ class MainWindow(QMainWindow):
         ).decode("ascii")
         cfg["split_sizes"] = self._splitter.sizes()
         cfg["expanded_oids"] = sorted(self._tree.expanded_oids())
-        cfg["tree_column_widths"] = [
-            self._tree.columnWidth(0), self._tree.columnWidth(1)
-        ]
+        # 仅保存有效的列宽(防御 0 宽度导致下次树空白)
+        w0, w1 = self._tree.columnWidth(0), self._tree.columnWidth(1)
+        cfg["tree_column_widths"] = [w0, w1] if (w0 > 0 and w1 > 0) else None
         self._ud.set_config(cfg)
         super().closeEvent(event)
