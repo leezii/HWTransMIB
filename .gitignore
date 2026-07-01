@@ -9,6 +9,9 @@ build/
 # 例外: 项目自带的打包配置需提交
 !hwtransmib.spec
 
+# Git worktrees (isolated dev workspaces)
+.worktrees/
+
 # uv
 .uv-cache/
 
