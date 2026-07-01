@@ -132,8 +132,11 @@ class MainWindow(QMainWindow):
         # 启动自动重载上次导入的 MIB(规格第 7 节)
         self._auto_reload_imports()
         self._refresh_favorites()
-        self._refresh_history()
         self._apply_column_widths()
+        self._apply_detail_split()
+        self._apply_fav_column_widths()
+        self._apply_hist_column_widths()
+        self._refresh_history()
 
     def _auto_reload_imports(self) -> None:
         """启动时自动重新导入上次记录的 MIB 文件。"""
@@ -150,6 +153,9 @@ class MainWindow(QMainWindow):
             self._tree.setModel(self._model)
             self._restore_expanded_state()
             self._apply_column_widths()
+            self._apply_detail_split()
+            self._apply_fav_column_widths()
+            self._apply_hist_column_widths()
             self._oid_svc = OidBuildService(
                 parser=self._import.get_parser(), root=root,
                 user_data=self._ud,
@@ -282,6 +288,17 @@ class MainWindow(QMainWindow):
         self._apply_table_column_widths(
             self._hist_view, saved, [0.15, 0.35, 0.20, 0.30])
 
+    def _apply_detail_split(self) -> None:
+        """应用详情区 splitter 比例:有记录用记录,否则按当前宽度 6:4。"""
+        saved = self._ud.config().get("detail_split_sizes")
+        if saved and len(saved) == 2 and saved[0] > 0 and saved[1] > 0:
+            self._detail_splitter.setSizes(saved)
+        else:
+            total = max(self._detail_splitter.width(), 600)
+            w0 = total * 6 // 10
+            w1 = total - w0
+            self._detail_splitter.setSizes([w0, w1])
+
     def _on_import(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self, "选择 MIB 文件", "",
@@ -300,6 +317,9 @@ class MainWindow(QMainWindow):
         self._tree.setModel(self._model)
         self._restore_expanded_state()
         self._apply_column_widths()
+        self._apply_detail_split()
+        self._apply_fav_column_widths()
+        self._apply_hist_column_widths()
         self._oid_svc = OidBuildService(
             parser=self._import.get_parser(), root=root, user_data=self._ud
         )
@@ -476,7 +496,7 @@ class MainWindow(QMainWindow):
         self._hist_view.resizeRowsToContents()
 
     def closeEvent(self, event) -> None:
-        """关闭时持久化窗口状态:详情显隐、几何、分割比例、展开状态。"""
+        """关闭时持久化窗口状态:详情显隐、几何、分割比例、展开状态、列宽。"""
         import base64
         cfg = self._ud.config()
         cfg["detail_visible"] = self._detail_btn.isChecked()
@@ -489,5 +509,14 @@ class MainWindow(QMainWindow):
         # 仅保存有效的列宽(防御 0 宽度导致下次树空白)
         w0, w1 = self._tree.columnWidth(0), self._tree.columnWidth(1)
         cfg["tree_column_widths"] = [w0, w1] if (w0 > 0 and w1 > 0) else None
+        # 详情区 splitter 比例
+        cfg["detail_split_sizes"] = self._detail_splitter.sizes()
+        # 收藏/历史表列宽(含 0 宽度时存 None 防御)
+        fav_w = [self._fav_view.columnWidth(c)
+                 for c in range(self._fav_view.columnCount())]
+        cfg["fav_column_widths"] = fav_w if all(x > 0 for x in fav_w) else None
+        hist_w = [self._hist_view.columnWidth(c)
+                  for c in range(self._hist_view.columnCount())]
+        cfg["hist_column_widths"] = hist_w if all(x > 0 for x in hist_w) else None
         self._ud.set_config(cfg)
         super().closeEvent(event)

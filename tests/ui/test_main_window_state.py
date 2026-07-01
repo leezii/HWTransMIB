@@ -386,3 +386,63 @@ def test_table_column_widths_zero_ignored(make_window, qtbot):
     w._apply_fav_column_widths()
     assert w._fav_view.columnWidth(0) > 0, "0 宽度应被忽略回退默认"
     assert w._fav_view.columnWidth(1) > 0
+
+
+def test_detail_split_restored_from_config(make_window, qtbot):
+    """_apply_detail_split 恢复详情区 splitter 比例。
+
+    QSplitter 会把请求的尺寸按比例重分配到实际宽度,故断言比例(4:3)
+    而非精确像素值。
+    """
+    w = make_window()
+    qtbot.addWidget(w)
+    cfg = w._ud.config()
+    cfg["detail_split_sizes"] = [400, 300]
+    w._ud.set_config(cfg)
+    w._apply_detail_split()
+    sizes = w._detail_splitter.sizes()
+    assert sizes[0] > 0 and sizes[1] > 0
+    # 4:3 比例,允许 ±6px(整数取整误差)
+    assert abs(sizes[0] * 3 - sizes[1] * 4) < 6, f"比例非 4:3: {sizes}"
+
+
+def test_detail_split_persisted_on_close(make_window, qtbot):
+    """关闭时详情区 splitter 比例写入 config。
+
+    QSplitter 在 setSizes 时按比例重分配,closeEvent 应持久化重分配后的
+    实际尺寸。"""
+    from PySide6.QtGui import QCloseEvent
+    w = make_window()
+    qtbot.addWidget(w)
+    w.show()
+    w._apply_detail_split()
+    # 模拟用户拖动(QSplitter 按比例重分配,记录实际尺寸做断言基准)
+    w._detail_splitter.setSizes([500, 350])
+    actual = w._detail_splitter.sizes()
+    w.closeEvent(QCloseEvent())
+    saved = UserData(base_dir=w._ud._base).config()["detail_split_sizes"]
+    assert saved == actual
+
+
+def test_fav_column_widths_persisted_on_close(make_window, qtbot):
+    """关闭时收藏表列宽写入 config。"""
+    from PySide6.QtGui import QCloseEvent
+    w = make_window()
+    qtbot.addWidget(w)
+    w.show()
+    w._apply_fav_column_widths()
+    w.closeEvent(QCloseEvent())
+    saved = UserData(base_dir=w._ud._base).config()["fav_column_widths"]
+    assert saved is not None and len(saved) == 2 and all(x > 0 for x in saved)
+
+
+def test_hist_column_widths_persisted_on_close(make_window, qtbot):
+    """关闭时历史表列宽写入 config。"""
+    from PySide6.QtGui import QCloseEvent
+    w = make_window()
+    qtbot.addWidget(w)
+    w.show()
+    w._apply_hist_column_widths()
+    w.closeEvent(QCloseEvent())
+    saved = UserData(base_dir=w._ud._base).config()["hist_column_widths"]
+    assert saved is not None and len(saved) == 4 and all(x > 0 for x in saved)
