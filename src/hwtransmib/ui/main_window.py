@@ -435,6 +435,11 @@ class MainWindow(QMainWindow):
             self._hist_view.setItem(r, 0, QTableWidgetItem(time_text))
             self._hist_view.setItem(r, 1, QTableWidgetItem(it.get("oid", "")))
             self._hist_view.setItem(r, 2, QTableWidgetItem(it.get("name", "")))
+            # 索引列:旧记录无 index_values 键时 .get() 兜底为空(向后兼容)
+            index_text = format_index(it.get("index_values", {}))
+            self._hist_view.setItem(r, 3, QTableWidgetItem(index_text))
+        # 多行索引:行高自适应内容
+        self._hist_view.resizeRowsToContents()
 
     def closeEvent(self, event) -> None:
         """关闭时持久化窗口状态:详情显隐、几何、分割比例、展开状态。"""

@@ -271,3 +271,52 @@ def test_history_table_has_four_columns(make_window, qtbot):
     headers = [w._hist_view.horizontalHeaderItem(c).text()
                for c in range(4)]
     assert headers == ["时间", "OID", "节点", "索引"]
+
+
+def test_history_index_column_shows_single(make_window, qtbot):
+    """单值索引在'索引'列显示 'ifIndex = 5'。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    w._ud.add_history_entry({
+        "oid": "1.2.3.5", "name": "ifDescr",
+        "index_values": {"ifIndex": "5"}, "timestamp": 1730000000,
+    })
+    w._refresh_history()
+    assert w._hist_view.item(0, 3).text() == "ifIndex = 5"
+
+
+def test_history_index_column_shows_compound(make_window, qtbot):
+    """联合索引在'索引'列多行显示。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    w._ud.add_history_entry({
+        "oid": "1.2.3", "name": "test",
+        "index_values": {"ifIndex": "5", "ifDescr": "eth0"},
+        "timestamp": 1730000000,
+    })
+    w._refresh_history()
+    index_text = w._hist_view.item(0, 3).text()
+    assert index_text == "ifIndex = 5\nifDescr = eth0"
+
+
+def test_history_index_column_empty_for_scalar(make_window, qtbot):
+    """标量节点(无索引)'索引'列留空。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    w._ud.add_history_entry({
+        "oid": "1.2.3", "name": "scalar",
+        "index_values": {}, "timestamp": 1730000000,
+    })
+    w._refresh_history()
+    assert w._hist_view.item(0, 3).text() == ""
+
+
+def test_history_index_column_empty_for_legacy_entry(make_window, qtbot):
+    """旧记录(无 index_values 字段)'索引'列留空,不报错(向后兼容)。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    # 旧格式:无 index_values 键
+    w._ud.add_history_entry({"oid": "1.2.3", "name": "legacy",
+                             "timestamp": 1730000000})
+    w._refresh_history()
+    assert w._hist_view.item(0, 3).text() == ""
