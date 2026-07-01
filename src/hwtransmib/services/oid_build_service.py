@@ -42,6 +42,7 @@ class OidBuildService:
             "oid": oid,
             "name": node.name,
             "module": node.module_name,
+            "index_values": dict(index_values),
             "timestamp": int(time.time()),
         })
         return oid

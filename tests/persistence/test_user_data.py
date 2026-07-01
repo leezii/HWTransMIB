@@ -83,3 +83,11 @@ def test_persist_tree_column_widths(tmp_path):
     ud.set_config(cfg)
     ud2 = UserData(base_dir=tmp_path)
     assert ud2.config()["tree_column_widths"] == [533, 266]
+
+
+def test_config_defaults_include_detail_panel_fields(tmp_path):
+    ud = UserData(base_dir=tmp_path)
+    cfg = ud.config()
+    assert cfg["detail_split_sizes"] is None
+    assert cfg["fav_column_widths"] is None
+    assert cfg["hist_column_widths"] is None

@@ -32,6 +32,16 @@ from hwtransmib.ui.property_panel import PropertyPanel
 from hwtransmib.ui.search_box import SearchBox
 
 
+def format_index(values: dict[str, str]) -> str:
+    """格式化索引值为多行文本:联合索引每组一行 '节点名 = 值'。
+
+    空索引返回空字符串。用于历史表"索引"列显示。
+    """
+    if not values:
+        return ""
+    return "\n".join(f"{k} = {v}" for k, v in values.items())
+
+
 class MainWindow(QMainWindow):
     """主窗口。"""
 
@@ -122,8 +132,11 @@ class MainWindow(QMainWindow):
         # 启动自动重载上次导入的 MIB(规格第 7 节)
         self._auto_reload_imports()
         self._refresh_favorites()
-        self._refresh_history()
         self._apply_column_widths()
+        self._apply_detail_split()
+        self._apply_fav_column_widths()
+        self._apply_hist_column_widths()
+        self._refresh_history()
 
     def _auto_reload_imports(self) -> None:
         """启动时自动重新导入上次记录的 MIB 文件。"""
@@ -140,6 +153,9 @@ class MainWindow(QMainWindow):
             self._tree.setModel(self._model)
             self._restore_expanded_state()
             self._apply_column_widths()
+            self._apply_detail_split()
+            self._apply_fav_column_widths()
+            self._apply_hist_column_widths()
             self._oid_svc = OidBuildService(
                 parser=self._import.get_parser(), root=root,
                 user_data=self._ud,
@@ -151,22 +167,28 @@ class MainWindow(QMainWindow):
             )
 
     def _build_detail(self) -> QWidget:
-        """构建详情区:左属性面板 + 右收藏/历史 Tab。"""
+        """构建详情区:左属性面板 + 右收藏/历史 Tab,中间可拖动分隔。"""
         box = QGroupBox("详情")
-        layout = QHBoxLayout(box)
-        layout.setContentsMargins(4, 4, 4, 4)
+        box_layout = QHBoxLayout(box)
+        box_layout.setContentsMargins(4, 4, 4, 4)
         self._property = PropertyPanel()
-        layout.addWidget(self._property, 3)
+        self._property.setMinimumWidth(200)
         self._tabs = QTabWidget()
+        self._tabs.setMinimumWidth(240)
         self._fav_view = QTableWidget(0, 2)
         self._fav_view.setHorizontalHeaderLabels(["节点", "OID"])
         self._fav_view.verticalHeader().setVisible(False)
-        self._hist_view = QTableWidget(0, 3)
-        self._hist_view.setHorizontalHeaderLabels(["时间", "OID", "节点"])
+        self._hist_view = QTableWidget(0, 4)
+        self._hist_view.setHorizontalHeaderLabels(["时间", "OID", "节点", "索引"])
         self._hist_view.verticalHeader().setVisible(False)
+        self._hist_view.setWordWrap(True)
         self._tabs.addTab(self._fav_view, "★ 收藏")
         self._tabs.addTab(self._hist_view, "🕑 历史")
-        layout.addWidget(self._tabs, 2)
+        # 水平 splitter:属性面板 ↔ 收藏/历史 Tab,可拖动调节宽度
+        self._detail_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._detail_splitter.addWidget(self._property)
+        self._detail_splitter.addWidget(self._tabs)
+        box_layout.addWidget(self._detail_splitter)
         return box
 
     def _toggle_detail(self, visible: bool) -> None:
@@ -232,6 +254,51 @@ class MainWindow(QMainWindow):
             self._tree.setColumnWidth(0, w0)
             self._tree.setColumnWidth(1, w1)
 
+    @staticmethod
+    def _apply_table_column_widths(table: QTableWidget, saved: list | None,
+                                   ratios: list[float],
+                                   fallback_width: int = 600) -> None:
+        """通用列宽应用:Interactive 模式 + 持久化 + 默认比例回退。
+
+        saved 为空/长度不符/含非正值时,按 ratios 比例 × fallback_width 分配。
+        """
+        from PySide6.QtWidgets import QHeaderView
+        header = table.horizontalHeader()
+        for col in range(table.columnCount()):
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+
+        total = max(table.viewport().width(), fallback_width)
+        if (saved and len(saved) == len(ratios) and all(w > 0 for w in saved)):
+            for col, w in enumerate(saved):
+                table.setColumnWidth(col, w)
+        else:
+            for col, ratio in enumerate(ratios):
+                table.setColumnWidth(col, int(total * ratio))
+
+    def _apply_fav_column_widths(self) -> None:
+        """收藏表列宽:[节点 0.55, OID 0.45]。"""
+        saved = self._ud.config().get("fav_column_widths")
+        self._apply_table_column_widths(
+            self._fav_view, saved, [0.55, 0.45])
+
+    def _apply_hist_column_widths(self) -> None:
+        """历史表列宽:[时间 0.15, OID 0.35, 节点 0.20, 索引 0.30]。"""
+        saved = self._ud.config().get("hist_column_widths")
+        self._apply_table_column_widths(
+            self._hist_view, saved, [0.15, 0.35, 0.20, 0.30])
+
+    def _apply_detail_split(self) -> None:
+        """应用详情区 splitter 比例:有记录用记录,否则按当前宽度 6:4。"""
+        saved = self._ud.config().get("detail_split_sizes")
+        if saved and len(saved) == 2 and saved[0] > 0 and saved[1] > 0:
+            self._detail_splitter.setSizes(saved)
+        else:
+            total = max(self._detail_splitter.width(), 600)
+            w0 = total * 6 // 10
+            w1 = total - w0
+            self._detail_splitter.setSizes([w0, w1])
+
     def _on_import(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self, "选择 MIB 文件", "",
@@ -250,6 +317,9 @@ class MainWindow(QMainWindow):
         self._tree.setModel(self._model)
         self._restore_expanded_state()
         self._apply_column_widths()
+        self._apply_detail_split()
+        self._apply_fav_column_widths()
+        self._apply_hist_column_widths()
         self._oid_svc = OidBuildService(
             parser=self._import.get_parser(), root=root, user_data=self._ud
         )
@@ -419,9 +489,14 @@ class MainWindow(QMainWindow):
             self._hist_view.setItem(r, 0, QTableWidgetItem(time_text))
             self._hist_view.setItem(r, 1, QTableWidgetItem(it.get("oid", "")))
             self._hist_view.setItem(r, 2, QTableWidgetItem(it.get("name", "")))
+            # 索引列:旧记录无 index_values 键时 .get() 兜底为空(向后兼容)
+            index_text = format_index(it.get("index_values", {}))
+            self._hist_view.setItem(r, 3, QTableWidgetItem(index_text))
+        # 多行索引:行高自适应内容
+        self._hist_view.resizeRowsToContents()
 
     def closeEvent(self, event) -> None:
-        """关闭时持久化窗口状态:详情显隐、几何、分割比例、展开状态。"""
+        """关闭时持久化窗口状态:详情显隐、几何、分割比例、展开状态、列宽。"""
         import base64
         cfg = self._ud.config()
         cfg["detail_visible"] = self._detail_btn.isChecked()
@@ -434,5 +509,14 @@ class MainWindow(QMainWindow):
         # 仅保存有效的列宽(防御 0 宽度导致下次树空白)
         w0, w1 = self._tree.columnWidth(0), self._tree.columnWidth(1)
         cfg["tree_column_widths"] = [w0, w1] if (w0 > 0 and w1 > 0) else None
+        # 详情区 splitter 比例
+        cfg["detail_split_sizes"] = self._detail_splitter.sizes()
+        # 收藏/历史表列宽(含 0 宽度时存 None 防御)
+        fav_w = [self._fav_view.columnWidth(c)
+                 for c in range(self._fav_view.columnCount())]
+        cfg["fav_column_widths"] = fav_w if all(x > 0 for x in fav_w) else None
+        hist_w = [self._hist_view.columnWidth(c)
+                  for c in range(self._hist_view.columnCount())]
+        cfg["hist_column_widths"] = hist_w if all(x > 0 for x in hist_w) else None
         self._ud.set_config(cfg)
         super().closeEvent(event)
