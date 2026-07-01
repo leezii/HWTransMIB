@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from hwtransmib.kernel.model import MibNode, NodeType
 from hwtransmib.kernel.oid_builder import OidBuildError
+from hwtransmib.kernel.string_templates import StringTemplateStore
 from hwtransmib.services.oid_build_service import OidBuildService
 
 
@@ -20,10 +21,12 @@ class OidBuilderDialog(QDialog):
     """OID 构造对话框。"""
 
     def __init__(self, node: MibNode, service: OidBuildService,
+                 templates: StringTemplateStore | None = None,
                  parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._node = node
         self._service = service
+        self._templates = templates
         self._inputs: dict[str, QLineEdit] = {}
         self.setWindowTitle(f"构造 OID — {node.name}")
         self.setMinimumWidth(420)
@@ -46,6 +49,7 @@ class OidBuilderDialog(QDialog):
                 edit.textChanged.connect(self._refresh)
                 self._inputs[spec.column_name] = edit
                 self._attach_completer(edit, spec)
+                self._prefill_template(spec, edit)
                 form.addRow(f"{spec.column_name} ({spec.syntax})", edit)
             layout.addLayout(form)
         elif self._node.node_type == NodeType.SCALAR:
@@ -83,6 +87,27 @@ class OidBuilderDialog(QDialog):
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
         edit.setCompleter(completer)
+
+    def _prefill_template(self, spec, edit: QLineEdit) -> None:
+        """字符串类索引列(非整数、非枚举)查模板预填;命中则 setText。
+
+        预填用 setText 会触发 textChanged → _refresh,对话框打开即显示
+        编码后的 OID 预览。仅在 _build_ui 构造时执行一次,之后不覆盖用户编辑。
+        """
+        if self._templates is None:
+            return
+        # 仅字符串类列查模板:非整数、非枚举
+        if spec.is_integer or spec.named_values:
+            return
+        if not spec.column_oid:
+            return
+        template = self._templates.lookup(spec.column_oid)
+        if template:
+            # 构造期间 _preview 尚未创建,屏蔽信号避免 textChanged → _refresh
+            # 触碰未就绪的属性;__init__ 末尾的 _refresh() 会算出正确预览。
+            edit.blockSignals(True)
+            edit.setText(template)
+            edit.blockSignals(False)
 
     def set_index_value(self, column_name: str, value: str) -> None:
         """测试/外部设置索引值。"""

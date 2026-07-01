@@ -1,6 +1,9 @@
 """OidBuilderDialog 测试:标量显示 .0,表列实时预览。"""
+import json
+
 import pytest
 
+from hwtransmib.kernel.string_templates import StringTemplateStore
 from hwtransmib.persistence.user_data import UserData
 from hwtransmib.services.import_service import ImportService
 from hwtransmib.services.oid_build_service import OidBuildService
@@ -101,3 +104,63 @@ def test_numeric_input_preview(qtbot, ip_setup):
     dlg.set_index_value("ipIfStatsIPVersion", "1")
     dlg.set_index_value("ipIfStatsIfIndex", "5")
     assert dlg.result_text().endswith(".1.5")
+
+
+@pytest.fixture
+def ip_setup_with_templates(fixtures_mibs_dir, tmp_path):
+    """IP-MIB + 一个含 IpAddress 列模板的 StringTemplateStore。
+
+    ipNetToMediaNetAddress(OID 1.3.6.1.2.1.4.22.1.3,IpAddress 类型)是字符串类
+    索引列;ipNetToMediaIfIndex(Integer32)是整数列。模板只对前者生效。
+    """
+    from pathlib import Path
+    ip_mib = Path("src/hwtransmib/kernel/standard_mibs/IP-MIB")
+    imp = ImportService(extra_sources=[str(fixtures_mibs_dir),
+                                      "src/hwtransmib/kernel/standard_mibs"])
+    imp.import_files([str(ip_mib)])
+    svc = OidBuildService(parser=imp.get_parser(), root=imp.get_root(),
+                          user_data=UserData(base_dir=tmp_path))
+    # 预置模板:IpAddress 列(字符串类)有模板,整数列无
+    tpl_file = tmp_path / "templates.json"
+    tpl_file.write_text(json.dumps({"templates": [
+        {"oid": "1.3.6.1.2.1.4.22.1.3", "template": "192.168.1.100"},
+    ]}, ensure_ascii=False), encoding="utf-8")
+    store = StringTemplateStore(tpl_file)
+    store.reload()
+    return svc, imp.get_root(), store
+
+
+def test_string_column_prefilled_from_template(qtbot, ip_setup_with_templates):
+    """字符串类索引列(IpAddress)命中模板 → 预填到输入框。"""
+    svc, root, store = ip_setup_with_templates
+    node = root.find("1.3.6.1.2.1.4.22.1.2")  # ipNetToMediaPhysAddress COLUMN
+    dlg = OidBuilderDialog(node, svc, templates=store)
+    qtbot.addWidget(dlg)
+    assert dlg._inputs["ipNetToMediaNetAddress"].text() == "192.168.1.100"
+
+
+def test_integer_column_not_prefilled(qtbot, ip_setup_with_templates):
+    """整数列(Integer32)即使无模板也不预填(本就不查模板),保持空。"""
+    svc, root, store = ip_setup_with_templates
+    node = root.find("1.3.6.1.2.1.4.22.1.2")
+    dlg = OidBuilderDialog(node, svc, templates=store)
+    qtbot.addWidget(dlg)
+    assert dlg._inputs["ipNetToMediaIfIndex"].text() == ""
+
+
+def test_string_column_empty_when_no_template(qtbot, fixtures_mibs_dir, tmp_path):
+    """字符串类列未命中模板 → 留空(与现状一致)。"""
+    from pathlib import Path
+    ip_mib = Path("src/hwtransmib/kernel/standard_mibs/IP-MIB")
+    imp = ImportService(extra_sources=[str(fixtures_mibs_dir),
+                                      "src/hwtransmib/kernel/standard_mibs"])
+    imp.import_files([str(ip_mib)])
+    svc = OidBuildService(parser=imp.get_parser(), root=imp.get_root(),
+                          user_data=UserData(base_dir=tmp_path))
+    # 空模板表(不 reload,内存表为空,所有 lookup 返回 None)
+    store = StringTemplateStore(tmp_path / "templates.json")
+    root = imp.get_root()
+    node = root.find("1.3.6.1.2.1.4.22.1.2")
+    dlg = OidBuilderDialog(node, svc, templates=store)
+    qtbot.addWidget(dlg)
+    assert dlg._inputs["ipNetToMediaNetAddress"].text() == ""
