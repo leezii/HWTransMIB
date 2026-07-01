@@ -45,3 +45,21 @@ def test_validate_ok(setup):
     svc, root, _ = setup
     node = root.find("1.3.6.1.2.1.2.2.1.2")
     assert svc.validate(node, {"ifIndex": "5"}) == []
+
+
+def test_build_and_record_stores_index_values(setup):
+    """构造并记录时,entry 含 index_values 字段且内容正确。"""
+    svc, root, ud = setup
+    node = root.find("1.3.6.1.2.1.2.2.1.2")  # ifDescr
+    svc.build_and_record(node, {"ifIndex": "5"})
+    entry = ud.history()["items"][0]
+    assert entry["index_values"] == {"ifIndex": "5"}
+
+
+def test_build_and_record_scalar_empty_index(setup):
+    """标量节点(无索引):index_values 为空 dict。"""
+    svc, root, ud = setup
+    node = root.find("1.3.6.1.2.1.2.1")  # ifNumber 标量
+    svc.build_and_record(node, {})
+    entry = ud.history()["items"][0]
+    assert entry["index_values"] == {}
