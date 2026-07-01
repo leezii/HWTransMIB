@@ -4,7 +4,7 @@ import pytest
 from hwtransmib.kernel.model import MibNode, NodeType
 from hwtransmib.persistence.user_data import UserData
 from hwtransmib.services.import_service import ImportService
-from hwtransmib.ui.main_window import MainWindow
+from hwtransmib.ui.main_window import MainWindow, format_index
 
 
 @pytest.fixture
@@ -226,9 +226,6 @@ def test_zero_widths_not_persisted_on_close(make_window, qtbot):
     w.closeEvent(QCloseEvent())
     saved = UserData(base_dir=w._ud._base).config()["tree_column_widths"]
     assert saved is None, f"0 宽度不应保存,但存了 {saved}"
-
-
-from hwtransmib.ui.main_window import format_index
 
 
 def test_format_index_empty():
