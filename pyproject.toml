@@ -1,6 +1,6 @@
 [project]
 name = "hwtransmib"
-version = "0.1.0"
+version = "0.3.0"
 description = "SNMP MIB 浏览与 OID 构造工具"
 readme = "README.md"
 authors = [
