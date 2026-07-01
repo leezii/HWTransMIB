@@ -226,3 +226,22 @@ def test_zero_widths_not_persisted_on_close(make_window, qtbot):
     w.closeEvent(QCloseEvent())
     saved = UserData(base_dir=w._ud._base).config()["tree_column_widths"]
     assert saved is None, f"0 宽度不应保存,但存了 {saved}"
+
+
+from hwtransmib.ui.main_window import format_index
+
+
+def test_format_index_empty():
+    """空索引(标量节点):返回空字符串。"""
+    assert format_index({}) == ""
+
+
+def test_format_index_single():
+    """单值索引:一行 '节点名 = 值'。"""
+    assert format_index({"ifIndex": "5"}) == "ifIndex = 5"
+
+
+def test_format_index_compound():
+    """联合索引:每组一行。"""
+    result = format_index({"ifIndex": "5", "ifDescr": "eth0"})
+    assert result == "ifIndex = 5\nifDescr = eth0"

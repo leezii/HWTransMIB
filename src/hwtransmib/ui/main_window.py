@@ -32,6 +32,16 @@ from hwtransmib.ui.property_panel import PropertyPanel
 from hwtransmib.ui.search_box import SearchBox
 
 
+def format_index(values: dict[str, str]) -> str:
+    """格式化索引值为多行文本:联合索引每组一行 '节点名 = 值'。
+
+    空索引返回空字符串。用于历史表"索引"列显示。
+    """
+    if not values:
+        return ""
+    return "\n".join(f"{k} = {v}" for k, v in values.items())
+
+
 class MainWindow(QMainWindow):
     """主窗口。"""
 
