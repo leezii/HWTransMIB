@@ -320,3 +320,69 @@ def test_history_index_column_empty_for_legacy_entry(make_window, qtbot):
                              "timestamp": 1730000000})
     w._refresh_history()
     assert w._hist_view.item(0, 3).text() == ""
+
+
+def test_fav_column_widths_default_ratio(make_window, qtbot):
+    """首次启动:收藏表节点列 ≈ OID 列(0.55/0.45)。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    w.show()
+    w._apply_fav_column_widths()
+    total = w._fav_view.columnWidth(0) + w._fav_view.columnWidth(1)
+    ratio0 = w._fav_view.columnWidth(0) / total
+    # 节点列约占 0.55,允许误差
+    assert 0.45 < ratio0 < 0.65, f"节点列占比 {ratio0} 非 ~0.55"
+
+
+def test_hist_column_widths_default_ratio(make_window, qtbot):
+    """首次启动:历史表 OID 列(index 1)占比最大(~0.35)。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    w.show()
+    w._apply_hist_column_widths()
+    widths = [w._hist_view.columnWidth(c) for c in range(4)]
+    total = sum(widths)
+    assert total > 0
+    ratios = [x / total for x in widths]
+    # OID 列(第 2 列,index 1)应最大
+    assert ratios[1] > ratios[0], "OID 列应比时间列宽"
+    assert ratios[1] > ratios[2], "OID 列应比节点列宽"
+    assert ratios[1] > ratios[3], "OID 列应比索引列宽"
+
+
+def test_fav_column_widths_restored_from_config(make_window, qtbot):
+    """有记录时:收藏表恢复用户保存的列宽。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    cfg = w._ud.config()
+    cfg["fav_column_widths"] = [300, 250]
+    w._ud.set_config(cfg)
+    w._apply_fav_column_widths()
+    assert w._fav_view.columnWidth(0) == 300
+    assert w._fav_view.columnWidth(1) == 250
+
+
+def test_hist_column_widths_restored_from_config(make_window, qtbot):
+    """有记录时:历史表恢复用户保存的列宽。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    cfg = w._ud.config()
+    cfg["hist_column_widths"] = [100, 250, 150, 200]
+    w._ud.set_config(cfg)
+    w._apply_hist_column_widths()
+    assert w._hist_view.columnWidth(0) == 100
+    assert w._hist_view.columnWidth(1) == 250
+    assert w._hist_view.columnWidth(2) == 150
+    assert w._hist_view.columnWidth(3) == 200
+
+
+def test_table_column_widths_zero_ignored(make_window, qtbot):
+    """config 里含 0 宽度的列宽应被忽略(回退默认)。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    cfg = w._ud.config()
+    cfg["fav_column_widths"] = [0, 0]
+    w._ud.set_config(cfg)
+    w._apply_fav_column_widths()
+    assert w._fav_view.columnWidth(0) > 0, "0 宽度应被忽略回退默认"
+    assert w._fav_view.columnWidth(1) > 0

@@ -248,6 +248,40 @@ class MainWindow(QMainWindow):
             self._tree.setColumnWidth(0, w0)
             self._tree.setColumnWidth(1, w1)
 
+    @staticmethod
+    def _apply_table_column_widths(table: QTableWidget, saved: list | None,
+                                   ratios: list[float],
+                                   fallback_width: int = 600) -> None:
+        """通用列宽应用:Interactive 模式 + 持久化 + 默认比例回退。
+
+        saved 为空/长度不符/含非正值时,按 ratios 比例 × fallback_width 分配。
+        """
+        from PySide6.QtWidgets import QHeaderView
+        header = table.horizontalHeader()
+        for col in range(table.columnCount()):
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+
+        total = max(table.viewport().width(), fallback_width)
+        if (saved and len(saved) == len(ratios) and all(w > 0 for w in saved)):
+            for col, w in enumerate(saved):
+                table.setColumnWidth(col, w)
+        else:
+            for col, ratio in enumerate(ratios):
+                table.setColumnWidth(col, int(total * ratio))
+
+    def _apply_fav_column_widths(self) -> None:
+        """收藏表列宽:[节点 0.55, OID 0.45]。"""
+        saved = self._ud.config().get("fav_column_widths")
+        self._apply_table_column_widths(
+            self._fav_view, saved, [0.55, 0.45])
+
+    def _apply_hist_column_widths(self) -> None:
+        """历史表列宽:[时间 0.15, OID 0.35, 节点 0.20, 索引 0.30]。"""
+        saved = self._ud.config().get("hist_column_widths")
+        self._apply_table_column_widths(
+            self._hist_view, saved, [0.15, 0.35, 0.20, 0.30])
+
     def _on_import(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self, "选择 MIB 文件", "",
