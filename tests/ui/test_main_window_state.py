@@ -245,3 +245,29 @@ def test_format_index_compound():
     """联合索引:每组一行。"""
     result = format_index({"ifIndex": "5", "ifDescr": "eth0"})
     assert result == "ifIndex = 5\nifDescr = eth0"
+
+
+def test_detail_uses_splitter(make_window, qtbot):
+    """详情区内部是 QSplitter(可拖动),而非固定 stretch 的 QHBoxLayout。"""
+    from PySide6.QtWidgets import QSplitter
+    w = make_window()
+    qtbot.addWidget(w)
+    assert isinstance(w._detail_splitter, QSplitter)
+
+
+def test_detail_splitter_has_minimum_widths(make_window, qtbot):
+    """splitter 两侧 widget 设了最小宽度,避免极窄窗口下被压没。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    assert w._property.minimumWidth() >= 200
+    assert w._tabs.minimumWidth() >= 240
+
+
+def test_history_table_has_four_columns(make_window, qtbot):
+    """历史表建为 4 列:时间/OID/节点/索引。"""
+    w = make_window()
+    qtbot.addWidget(w)
+    assert w._hist_view.columnCount() == 4
+    headers = [w._hist_view.horizontalHeaderItem(c).text()
+               for c in range(4)]
+    assert headers == ["时间", "OID", "节点", "索引"]

@@ -161,22 +161,28 @@ class MainWindow(QMainWindow):
             )
 
     def _build_detail(self) -> QWidget:
-        """构建详情区:左属性面板 + 右收藏/历史 Tab。"""
+        """构建详情区:左属性面板 + 右收藏/历史 Tab,中间可拖动分隔。"""
         box = QGroupBox("详情")
-        layout = QHBoxLayout(box)
-        layout.setContentsMargins(4, 4, 4, 4)
+        box_layout = QHBoxLayout(box)
+        box_layout.setContentsMargins(4, 4, 4, 4)
         self._property = PropertyPanel()
-        layout.addWidget(self._property, 3)
+        self._property.setMinimumWidth(200)
         self._tabs = QTabWidget()
+        self._tabs.setMinimumWidth(240)
         self._fav_view = QTableWidget(0, 2)
         self._fav_view.setHorizontalHeaderLabels(["节点", "OID"])
         self._fav_view.verticalHeader().setVisible(False)
-        self._hist_view = QTableWidget(0, 3)
-        self._hist_view.setHorizontalHeaderLabels(["时间", "OID", "节点"])
+        self._hist_view = QTableWidget(0, 4)
+        self._hist_view.setHorizontalHeaderLabels(["时间", "OID", "节点", "索引"])
         self._hist_view.verticalHeader().setVisible(False)
+        self._hist_view.setWordWrap(True)
         self._tabs.addTab(self._fav_view, "★ 收藏")
         self._tabs.addTab(self._hist_view, "🕑 历史")
-        layout.addWidget(self._tabs, 2)
+        # 水平 splitter:属性面板 ↔ 收藏/历史 Tab,可拖动调节宽度
+        self._detail_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._detail_splitter.addWidget(self._property)
+        self._detail_splitter.addWidget(self._tabs)
+        box_layout.addWidget(self._detail_splitter)
         return box
 
     def _toggle_detail(self, visible: bool) -> None:
