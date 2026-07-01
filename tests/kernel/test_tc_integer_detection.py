@@ -44,15 +44,14 @@ def test_tc_integer_flag_detected(root):
     assert entry.index_specs[1].is_integer is True
 
 
-def test_tc_integer_rejects_enum_name(builder, root):
-    """TC 整数索引输入枚举名(如 'ipv4')应报错(非数字)。"""
+def test_tc_integer_accepts_enum_name(builder, root):
+    """TC 整数索引输入枚举名(如 'ipv4')现在应通过校验(放开枚举名)。"""
     col = root.find("1.3.6.1.2.1.4.31.3.1.3")  # ipIfStatsInReceives
     errors = builder.validate(col, {
-        "ipIfStatsIPVersion": "ipv4",  # 枚举名,非数字
+        "ipIfStatsIPVersion": "ipv4",   # 枚举名
         "ipIfStatsIfIndex": "5",
     })
-    # 关键:应报错(整数索引拒绝非数字)
-    assert any("需要整数" in e or "ipIfStatsIPVersion" in e for e in errors)
+    assert errors == []
 
 
 def test_tc_integer_accepts_numeric(builder, root):
@@ -75,3 +74,17 @@ def test_non_integer_tc_not_flagged(root):
         if s.column_name == "ipNetToMediaNetAddress"
     )
     assert addr_spec.is_integer is False
+
+
+def test_named_values_extracted_for_enum_tc(root):
+    """InetVersion(TC 枚举整数)的 named_values 被提取。"""
+    entry = root.find("1.3.6.1.2.1.4.31.3.1")  # ipIfStatsEntry
+    spec = entry.index_specs[0]  # ipIfStatsIPVersion = InetVersion
+    assert spec.named_values == [("unknown", 0), ("ipv4", 1), ("ipv6", 2)]
+
+
+def test_named_values_empty_for_non_enum_tc(root):
+    """InterfaceIndex(无枚举 TC 整数)的 named_values 为空列表。"""
+    entry = root.find("1.3.6.1.2.1.4.31.3.1")  # ipIfStatsEntry
+    spec = entry.index_specs[1]  # ipIfStatsIfIndex = InterfaceIndex
+    assert spec.named_values == []

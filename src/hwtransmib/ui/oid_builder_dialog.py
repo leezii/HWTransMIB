@@ -5,9 +5,10 @@
 """
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QApplication, QDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QTextEdit, QVBoxLayout, QWidget,
+    QApplication, QCompleter, QDialog, QFormLayout, QHBoxLayout, QLabel,
+    QLineEdit, QMessageBox, QPushButton, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from hwtransmib.kernel.model import MibNode, NodeType
@@ -44,6 +45,7 @@ class OidBuilderDialog(QDialog):
                 edit.setPlaceholderText(spec.syntax)
                 edit.textChanged.connect(self._refresh)
                 self._inputs[spec.column_name] = edit
+                self._attach_completer(edit, spec)
                 form.addRow(f"{spec.column_name} ({spec.syntax})", edit)
             layout.addLayout(form)
         elif self._node.node_type == NodeType.SCALAR:
@@ -72,6 +74,16 @@ class OidBuilderDialog(QDialog):
             parent = parent.parent
         return []
 
+    def _attach_completer(self, edit: QLineEdit, spec) -> None:
+        """对带枚举的索引列挂补全器:键入少量字符匹配枚举名。"""
+        if not spec.named_values:
+            return
+        labels = [f"{name} ({value})" for name, value in spec.named_values]
+        completer = QCompleter(labels, edit)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        edit.setCompleter(completer)
+
     def set_index_value(self, column_name: str, value: str) -> None:
         """测试/外部设置索引值。"""
         edit = self._inputs.get(column_name)
@@ -83,7 +95,33 @@ class OidBuilderDialog(QDialog):
         return self._preview.toPlainText().strip()
 
     def _values(self) -> dict[str, str]:
-        return {name: e.text() for name, e in self._inputs.items()}
+        return {name: self._normalize(name, e.text())
+                for name, e in self._inputs.items()}
+
+    def _normalize(self, column_name: str, text: str) -> str:
+        """规范化输入值。
+
+        仅对带枚举的列生效:选中下拉项形如 'name (n)' 时取枚举名,
+        交内核编码;纯数字/裸枚举名原样返回。其余列直接返回 text。
+        """
+        spec = self._spec_of(column_name)
+        if spec is None or not spec.named_values:
+            return text
+        text = text.strip()
+        # 形如 "name (n)" → 取括号前的枚举名
+        idx = text.rfind(" (")
+        if idx > 0 and text.endswith(")"):
+            candidate = text[:idx]
+            if any(candidate == n for n, _ in spec.named_values):
+                return candidate
+        return text
+
+    def _spec_of(self, column_name: str):
+        """按列名查 IndexSpec(从所属 ROW 的 index_specs)。"""
+        for spec in self._row_specs():
+            if spec.column_name == column_name:
+                return spec
+        return None
 
     def _refresh(self) -> None:
         """输入变化时实时重算预览。"""

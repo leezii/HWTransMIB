@@ -23,6 +23,8 @@ class IndexSpec:
     implied: bool
     syntax: str
     is_integer: bool = False  # 是否整数类型(含 TC 包装,如 InetVersion/InterfaceIndex)
+    # 枚举值(名称,数字)列表;空表示无枚举(纯整数,如 InterfaceIndex)
+    named_values: list[tuple[str, int]] = field(default_factory=list)
 
 
 @dataclass

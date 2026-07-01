@@ -131,3 +131,65 @@ def test_tc_wrapped_integer_build_returns_error(ip_builder):
             "ipNetToMediaIfIndex": "99999999999999999999",  # 溢出整数
             "ipNetToMediaNetAddress": "192.168.1.1",
         })
+
+
+# --- 枚举名索引(Task 2:接受 TC 枚举名) ---
+
+def test_enum_name_encoded_correctly(ip_builder):
+    """枚举名 ipv4 + 数字 5 → 索引后缀 1.5(PySnmp 接受枚举名)。"""
+    node = _find(ip_builder._root, "1.3.6.1.2.1.4.31.3.1.3")  # ipIfStatsInReceives
+    result = ip_builder.build(node, {
+        "ipIfStatsIPVersion": "ipv4",   # InetVersion 枚举名 → 编码 1
+        "ipIfStatsIfIndex": "5",
+    })
+    assert result == "1.3.6.1.2.1.4.31.3.1.3.1.5"
+
+
+def test_enum_numeric_still_works(ip_builder):
+    """枚举列也接受纯数字输入(数字路径不变)。"""
+    node = _find(ip_builder._root, "1.3.6.1.2.1.4.31.3.1.3")
+    result = ip_builder.build(node, {
+        "ipIfStatsIPVersion": "1",   # 纯数字
+        "ipIfStatsIfIndex": "5",
+    })
+    assert result == "1.3.6.1.2.1.4.31.3.1.3.1.5"
+
+
+def test_invalid_enum_name_rejected(ip_builder):
+    """非枚举名非数字的输入应报错。"""
+    node = _find(ip_builder._root, "1.3.6.1.2.1.4.31.3.1.3")
+    errors = ip_builder.validate(node, {
+        "ipIfStatsIPVersion": "foo",  # 既非枚举名也非数字
+        "ipIfStatsIfIndex": "5",
+    })
+    assert any("枚举名或数字" in e for e in errors)
+
+
+def test_out_of_range_enum_number_rejected(ip_builder):
+    """枚举列输入超出范围的数字(如 InetVersion 输入 99)应被校验拒绝。"""
+    node = _find(ip_builder._root, "1.3.6.1.2.1.4.31.3.1.3")
+    errors = ip_builder.validate(node, {
+        "ipIfStatsIPVersion": "99",  # 超出 InetVersion {0,1,2}
+        "ipIfStatsIfIndex": "5",
+    })
+    assert any("不在枚举值" in e for e in errors)
+
+
+def test_in_range_enum_number_accepted(ip_builder):
+    """枚举列输入范围内的数字(如 InetVersion 输入 2=ipv6)应通过校验。"""
+    node = _find(ip_builder._root, "1.3.6.1.2.1.4.31.3.1.3")
+    errors = ip_builder.validate(node, {
+        "ipIfStatsIPVersion": "2",  # ipv6, 在范围内
+        "ipIfStatsIfIndex": "5",
+    })
+    assert errors == []
+
+
+def test_non_enum_integer_rejection_unchanged(ip_builder):
+    """无枚举列(InterfaceIndex)仍走原整数校验,abc 报'需要整数'。"""
+    node = _find(ip_builder._root, "1.3.6.1.2.1.4.31.3.1.3")
+    errors = ip_builder.validate(node, {
+        "ipIfStatsIPVersion": "1",
+        "ipIfStatsIfIndex": "abc",  # 无枚举列,非数字
+    })
+    assert any("需要整数" in e for e in errors)
