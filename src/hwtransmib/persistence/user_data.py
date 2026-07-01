@@ -34,6 +34,11 @@ class UserData:
         self._favorites = JsonStore(self._base / "favorites.json", {"items": []})
         self._history = JsonStore(self._base / "history.json", {"items": []})
 
+    @property
+    def base_dir(self) -> Path:
+        """用户数据目录(~/.hwtransmib)。供外部拼资源路径,如模板文件。"""
+        return self._base
+
     # --- config ---
     def config(self) -> dict[str, Any]:
         return self._config.read()
