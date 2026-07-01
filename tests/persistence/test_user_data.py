@@ -91,3 +91,9 @@ def test_config_defaults_include_detail_panel_fields(tmp_path):
     assert cfg["detail_split_sizes"] is None
     assert cfg["fav_column_widths"] is None
     assert cfg["hist_column_widths"] is None
+
+
+def test_base_dir_property_exposed(tmp_path):
+    """UserData.base_dir 返回构造时传入的目录路径。"""
+    ud = UserData(base_dir=tmp_path)
+    assert ud.base_dir == tmp_path

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from hwtransmib.kernel.model import MibNode, NodeType
+from hwtransmib.kernel.string_templates import StringTemplateStore
 from hwtransmib.persistence.user_data import UserData
 from hwtransmib.services.import_service import ImportReport, ImportService
 from hwtransmib.services.oid_build_service import OidBuildService
@@ -62,6 +63,7 @@ class MainWindow(QMainWindow):
         self._import = import_service
         self._ud = user_data
         self._oid_svc: OidBuildService | None = None
+        self._templates: StringTemplateStore | None = None
         self._search_svc: SearchService | None = None
         self._model: MibTreeModel | None = None
         self._last_search_results: list = []
@@ -160,6 +162,10 @@ class MainWindow(QMainWindow):
                 parser=self._import.get_parser(), root=root,
                 user_data=self._ud,
             )
+            self._templates = StringTemplateStore(
+                self._ud.base_dir / "templates.json"
+            )
+            self._templates.reload()
             self._search_svc = SearchService(root=root)
             self._status.setText(
                 f"已重载 {len(report.loaded_modules)} 个 MIB · "
@@ -323,6 +329,10 @@ class MainWindow(QMainWindow):
         self._oid_svc = OidBuildService(
             parser=self._import.get_parser(), root=root, user_data=self._ud
         )
+        self._templates = StringTemplateStore(
+            self._ud.base_dir / "templates.json"
+        )
+        self._templates.reload()
         self._search_svc = SearchService(root=root)
         self._ud.set_imports(paths)
         self._refresh_favorites()
@@ -399,7 +409,7 @@ class MainWindow(QMainWindow):
     def _open_builder(self, node: MibNode) -> None:
         if self._oid_svc is None:
             return
-        dlg = OidBuilderDialog(node, self._oid_svc, self)
+        dlg = OidBuilderDialog(node, self._oid_svc, self._templates, self)
         dlg.exec()
         # 对话框关闭后刷新历史(复制操作可能已记录)
         self._refresh_history()
