@@ -24,7 +24,12 @@ class StringTemplateStore:
             data = json.loads(text)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             return
+        if not isinstance(data, dict):
+            return
+        # 重复 OID:后出现的覆盖先出现的(数组写入顺序,后写生效)
         for entry in data.get("templates", []):
+            if not isinstance(entry, dict):
+                continue
             oid = entry.get("oid")
             template = entry.get("template")
             # 缺 oid 或 template 字段 → 跳过该条
