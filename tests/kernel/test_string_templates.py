@@ -53,6 +53,19 @@ def test_corrupt_json_yields_empty(tmp_path):
     assert store.lookup("1.1") is None
 
 
+def test_non_utf8_file_yields_empty(tmp_path):
+    """非 UTF-8 文件 → 空表,不崩溃(UnicodeDecodeError 是 ValueError 子类)。
+
+    回归: reload() 在 MainWindow 导入流程中同步调用,若 templates.json 用
+    错误编码保存,必须降级为空表而非中断整个 MIB 导入。
+    """
+    f = tmp_path / "templates.json"
+    f.write_bytes(b"\xff\xfe\x00\x01\x80")  # 无效 UTF-8 字节
+    store = StringTemplateStore(f)
+    store.reload()
+    assert store.lookup("1.1") is None
+
+
 def test_entry_missing_oid_skipped(tmp_path):
     """某条缺 oid → 跳过该条,其余正常加载。"""
     f = tmp_path / "templates.json"

@@ -22,7 +22,10 @@ class StringTemplateStore:
         try:
             text = self._path.read_text(encoding="utf-8")
             data = json.loads(text)
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
+        except (OSError, ValueError):
+            # OSError: 文件缺失/不可读;ValueError: JSON 非法或非 UTF-8
+            # (UnicodeDecodeError/JSONDecodeError 均为 ValueError 子类)。
+            # 模板是辅助资源,任何读取问题都不应阻断主流程。
             return
         if not isinstance(data, dict):
             return
